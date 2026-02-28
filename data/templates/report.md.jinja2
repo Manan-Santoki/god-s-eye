@@ -1,0 +1,110 @@
+# GOD_EYE OSINT Report
+
+**Target:** `{{ target }}`
+**Target Type:** {{ target_type | upper }}
+**Request ID:** `{{ request_id }}`
+**Generated:** {{ generated_at }}
+{% if scan_duration_seconds %}**Scan Duration:** {{ scan_duration_seconds }}s{% endif %}
+
+---
+
+## Risk Assessment
+
+| Metric | Value |
+|--------|-------|
+| **Risk Score** | {{ risk_score | default('N/A') }} / 10 |
+| **Risk Level** | {{ risk_level | default('Unknown') | upper }} |
+| **Total Findings** | {{ total_findings | default(0) }} |
+| **Modules Run** | {{ modules_run | default(0) }} |
+
+---
+
+{% if ai_summary %}
+## AI Intelligence Summary
+
+{{ ai_summary }}
+
+---
+{% endif %}
+
+{% set summary = ai_summary_data | default({}) %}
+{% if summary.emails_found or summary.platforms_found or summary.breach_count %}
+## Discovered Entities
+
+{% if summary.emails_found %}
+### Email Addresses
+{% for email in summary.emails_found %}
+- `{{ email }}`
+{% endfor %}
+{% endif %}
+
+{% if summary.platforms_found %}
+### Social Platforms
+{% for platform in summary.platforms_found %}
+- {{ platform }}
+{% endfor %}
+{% endif %}
+
+{% if summary.breach_count %}
+### Data Exposure
+- **Breach count:** {{ summary.breach_count }}
+- **Has GPS data in images:** {{ summary.has_exif_gps | default(false) }}
+{% endif %}
+
+---
+{% endif %}
+
+{% if recommendations %}
+## Recommendations
+
+{% for rec in recommendations %}
+### {{ loop.index }}. {{ rec.title }} *({{ rec.severity | upper }})*
+
+{{ rec.description | default('') }}
+
+{% endfor %}
+---
+{% endif %}
+
+{% if timeline_events %}
+## Activity Timeline
+
+{% for event in timeline_events | sort(attribute='timestamp') %}
+### {{ event.timestamp }} — {{ event.title }}
+{% if event.detail %}{{ event.detail }}{% endif %}
+
+{% endfor %}
+---
+{% endif %}
+
+## Module Results
+
+{% for module_name, result in module_results.items() %}
+### {{ module_name | replace('_', ' ') | title }}
+
+{% if result.success is defined %}
+**Status:** {{ '✓ Success' if result.success else '✗ Failed' }}
+{% endif %}
+
+{% if result.error %}
+**Error:** `{{ result.error }}`
+{% elif result.data is defined %}
+```json
+{{ result.data | tojson(indent=2) | truncate(1500) }}
+```
+{% else %}
+```json
+{{ result | tojson(indent=2) | truncate(1500) }}
+```
+{% endif %}
+
+{% endfor %}
+
+---
+
+## Legal Notice
+
+> This report is for authorized OSINT research and personal privacy auditing only.
+> All information was collected from publicly available sources.
+> Unauthorized use may violate applicable laws (CFAA, GDPR, CCPA, etc.).
+> See [SECURITY_AND_ETHICS.md](SECURITY_AND_ETHICS.md) for full policy.

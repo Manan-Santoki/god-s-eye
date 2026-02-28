@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GOD_EYE OSINT Report — {{ target }}</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --text: #c9d1d9;
+    --muted: #8b949e;
+    --blue: #58a6ff;
+    --green: #3fb950;
+    --yellow: #d29922;
+    --red: #f85149;
+    --purple: #bc8cff;
+    --orange: #ffa657;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 24px;
+    line-height: 1.6;
+  }
+  a { color: var(--blue); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* ── Header ── */
+  .header {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 28px;
+    margin-bottom: 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .header-left h1 {
+    font-size: 26px;
+    color: var(--blue);
+    margin-bottom: 8px;
+  }
+  .header-left .target-label {
+    font-size: 14px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 4px;
+  }
+  .header-left .target-value {
+    font-size: 20px;
+    font-weight: 600;
+  }
+  .header-meta {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 12px;
+  }
+  .header-meta span { margin-right: 16px; }
+
+  /* ── Risk Badge ── */
+  .risk-widget {
+    text-align: center;
+    min-width: 140px;
+  }
+  .risk-score {
+    font-size: 48px;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .risk-label {
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-top: 4px;
+  }
+  .risk-bar {
+    height: 6px;
+    border-radius: 3px;
+    background: var(--border);
+    margin-top: 8px;
+    overflow: hidden;
+  }
+  .risk-bar-fill { height: 100%; border-radius: 3px; }
+  .risk-low    { color: #3fb950; } .risk-bar-fill.low    { background: #3fb950; }
+  .risk-medium { color: #d29922; } .risk-bar-fill.medium { background: #d29922; }
+  .risk-high   { color: #ffa657; } .risk-bar-fill.high   { background: #ffa657; }
+  .risk-critical { color: #f85149; } .risk-bar-fill.critical { background: #f85149; }
+
+  /* ── Stats Row ── */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    text-align: center;
+  }
+  .stat-number { font-size: 28px; font-weight: 700; color: var(--blue); }
+  .stat-label  { font-size: 12px; color: var(--muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
+
+  /* ── Section ── */
+  .section { margin-bottom: 24px; }
+  .section-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--blue);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 8px;
+    margin-bottom: 16px;
+  }
+
+  /* ── Module Card ── */
+  .module-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+    gap: 16px;
+  }
+  .module-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .module-card-header {
+    padding: 12px 16px;
+    background: rgba(88, 166, 255, 0.08);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .module-card-header h3 { font-size: 14px; font-weight: 600; }
+  .badge {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-weight: 600;
+  }
+  .badge-success { background: rgba(63,185,80,0.2); color: var(--green); }
+  .badge-error   { background: rgba(248,81,73,0.2); color: var(--red); }
+  .badge-skip    { background: rgba(139,148,158,0.2); color: var(--muted); }
+  .module-card-body { padding: 16px; }
+  pre {
+    background: var(--bg);
+    padding: 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--muted);
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+
+  /* ── Findings List ── */
+  .findings-list { list-style: none; }
+  .findings-list li {
+    padding: 8px 12px;
+    border-left: 3px solid var(--blue);
+    margin-bottom: 8px;
+    background: rgba(88,166,255,0.05);
+    border-radius: 0 4px 4px 0;
+    font-size: 14px;
+  }
+  .findings-list li .finding-type {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 2px;
+  }
+
+  /* ── Timeline ── */
+  .timeline { position: relative; padding-left: 24px; }
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: 8px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: var(--border);
+  }
+  .timeline-event {
+    position: relative;
+    margin-bottom: 16px;
+    padding: 12px 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  .timeline-event::before {
+    content: '';
+    position: absolute;
+    left: -20px;
+    top: 16px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--blue);
+    border: 2px solid var(--bg);
+  }
+  .timeline-date { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .timeline-title { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+  .timeline-detail { font-size: 13px; color: var(--muted); }
+
+  /* ── Entity Tags ── */
+  .tag-cloud { display: flex; flex-wrap: wrap; gap: 8px; }
+  .tag {
+    background: rgba(88,166,255,0.12);
+    color: var(--blue);
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 13px;
+    border: 1px solid rgba(88,166,255,0.25);
+  }
+  .tag.breach { background: rgba(248,81,73,0.12); color: var(--red); border-color: rgba(248,81,73,0.25); }
+  .tag.platform { background: rgba(63,185,80,0.12); color: var(--green); border-color: rgba(63,185,80,0.25); }
+
+  /* ── AI Summary ── */
+  .ai-summary {
+    background: var(--surface);
+    border: 1px solid rgba(188,140,255,0.3);
+    border-radius: 8px;
+    padding: 20px;
+    line-height: 1.7;
+  }
+  .ai-summary h4 { color: var(--purple); margin-bottom: 12px; font-size: 15px; }
+  .ai-summary p { margin-bottom: 10px; font-size: 14px; }
+  .ai-summary ul { padding-left: 20px; margin-bottom: 10px; }
+  .ai-summary li { font-size: 14px; margin-bottom: 4px; }
+
+  /* ── Recommendations ── */
+  .rec-list { list-style: none; }
+  .rec-list li {
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    border-radius: 6px;
+    font-size: 14px;
+    border-left: 4px solid;
+  }
+  .rec-critical { border-color: var(--red); background: rgba(248,81,73,0.08); }
+  .rec-high     { border-color: var(--orange); background: rgba(255,166,87,0.08); }
+  .rec-medium   { border-color: var(--yellow); background: rgba(210,153,34,0.08); }
+  .rec-low      { border-color: var(--green); background: rgba(63,185,80,0.08); }
+
+  /* ── Disclaimer ── */
+  .disclaimer {
+    background: rgba(248,81,73,0.06);
+    border: 1px solid rgba(248,81,73,0.3);
+    border-radius: 8px;
+    padding: 16px;
+    margin-top: 24px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .disclaimer strong { color: var(--red); }
+
+  /* ── Print ── */
+  @media print {
+    body { background: white; color: black; padding: 0; }
+    .header, .stat-card, .module-card, .ai-summary { border-color: #ccc; background: #f9f9f9; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<div class="header">
+  <div class="header-left">
+    <h1>🔍 GOD_EYE OSINT Report</h1>
+    <div class="target-label">Target</div>
+    <div class="target-value">{{ target }}</div>
+    <div class="target-label" style="margin-top:8px">Type</div>
+    <div>{{ target_type | upper }}</div>
+    <div class="header-meta">
+      <span>📋 Request ID: {{ request_id }}</span>
+      <span>🕐 Generated: {{ generated_at }}</span>
+      {% if scan_duration_seconds %}
+      <span>⏱ Duration: {{ scan_duration_seconds }}s</span>
+      {% endif %}
+    </div>
+  </div>
+  <div class="risk-widget">
+    <div class="risk-score risk-{{ risk_level | default('unknown') | lower }}">
+      {{ risk_score | default('N/A') }}
+    </div>
+    <div class="risk-label risk-{{ risk_level | default('unknown') | lower }}">
+      {{ risk_level | default('Unknown') | upper }}
+    </div>
+    {% if risk_score is not none and risk_score != 'N/A' %}
+    <div class="risk-bar">
+      <div class="risk-bar-fill {{ risk_level | default('low') | lower }}"
+           style="width: {{ [risk_score * 10, 100] | min }}%"></div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- ── Stats Row ── -->
+{% set summary = ai_summary_data | default({}) %}
+<div class="stats-row">
+  <div class="stat-card">
+    <div class="stat-number">{{ modules_run | default(0) }}</div>
+    <div class="stat-label">Modules Run</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-number" style="color: #f85149">{{ summary.breach_count | default(0) }}</div>
+    <div class="stat-label">Data Breaches</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-number">{{ summary.emails_found | default([]) | length }}</div>
+    <div class="stat-label">Emails Found</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-number">{{ summary.platforms_found | default([]) | length }}</div>
+    <div class="stat-label">Platforms</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-number" style="color: #3fb950">{{ total_findings | default(0) }}</div>
+    <div class="stat-label">Total Findings</div>
+  </div>
+</div>
+
+<!-- ── Key Entities ── -->
+{% if summary.emails_found or summary.platforms_found %}
+<div class="section">
+  <div class="section-title">🔗 Discovered Entities</div>
+  {% if summary.emails_found %}
+  <p style="font-size:13px; color: var(--muted); margin-bottom:8px;">Email Addresses</p>
+  <div class="tag-cloud" style="margin-bottom:12px;">
+    {% for email in summary.emails_found %}
+    <span class="tag">{{ email }}</span>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% if summary.platforms_found %}
+  <p style="font-size:13px; color: var(--muted); margin-bottom:8px;">Social Platforms</p>
+  <div class="tag-cloud">
+    {% for platform in summary.platforms_found %}
+    <span class="tag platform">{{ platform }}</span>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- ── AI Summary ── -->
+{% if ai_summary %}
+<div class="section">
+  <div class="section-title">🤖 AI Intelligence Summary</div>
+  <div class="ai-summary">
+    <h4>Analysis by {{ ai_model | default('AI Model') }}</h4>
+    {{ ai_summary | safe }}
+  </div>
+</div>
+{% endif %}
+
+<!-- ── Recommendations ── -->
+{% if recommendations %}
+<div class="section">
+  <div class="section-title">⚡ Recommendations</div>
+  <ul class="rec-list">
+    {% for rec in recommendations %}
+    <li class="rec-{{ rec.severity | default('low') | lower }}">
+      <strong>{{ rec.title }}</strong>{% if rec.description %} — {{ rec.description }}{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<!-- ── Timeline ── -->
+{% if timeline_events %}
+<div class="section">
+  <div class="section-title">📅 Activity Timeline</div>
+  <div class="timeline">
+    {% for event in timeline_events | sort(attribute='timestamp') %}
+    <div class="timeline-event">
+      <div class="timeline-date">{{ event.timestamp }}</div>
+      <div class="timeline-title">{{ event.title }}</div>
+      {% if event.detail %}
+      <div class="timeline-detail">{{ event.detail }}</div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- ── Module Results ── -->
+{% if module_results %}
+<div class="section">
+  <div class="section-title">📦 Module Results</div>
+  <div class="module-grid">
+    {% for module_name, result in module_results.items() %}
+    <div class="module-card">
+      <div class="module-card-header">
+        <h3>{{ module_name | replace('_', ' ') | title }}</h3>
+        {% if result.success is defined %}
+          {% if result.success %}
+            <span class="badge badge-success">✓ Success</span>
+          {% elif result.success == false %}
+            <span class="badge badge-error">✗ Failed</span>
+          {% endif %}
+        {% endif %}
+      </div>
+      <div class="module-card-body">
+        {% if result.error %}
+        <p style="color: var(--red); font-size: 13px;">{{ result.error }}</p>
+        {% else %}
+        <pre>{{ result | tojson(indent=2) | truncate(2000) }}</pre>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- ── Disclaimer ── -->
+<div class="disclaimer">
+  <strong>⚠️ LEGAL NOTICE:</strong>
+  This report is generated by GOD_EYE for authorized OSINT research and personal privacy auditing only.
+  All information was collected from publicly available sources. Unauthorized use, redistribution,
+  or targeting of individuals without consent may violate applicable laws including the CFAA, GDPR, CCPA,
+  and other privacy regulations. By using this tool you agree to the
+  <a href="https://github.com/god-eye-osint/god-eye/blob/main/SECURITY_AND_ETHICS.md">Ethics Policy</a>.
+  <br><br>
+  GOD_EYE is not affiliated with any social media platform. Report generated at {{ generated_at }}.
+</div>
+
+</body>
+</html>

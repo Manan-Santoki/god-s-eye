@@ -1,0 +1,47 @@
+You are an expert OSINT analyst producing an executive summary for a privacy audit report.
+
+## Context
+- **Target:** {{ target }}
+- **Target Type:** {{ target_type }}
+- **Risk Score:** {{ risk_score | default('N/A') }}/10  ({{ risk_level | default('Unknown') | upper }})
+- **Scan Date:** {{ generated_at }}
+- **Modules Run:** {{ modules_run | default(0) }}
+
+## Raw Intelligence Data
+```json
+{{ module_results | tojson(indent=2) | truncate(8000) }}
+```
+
+{% if correlations %}
+## Cross-Module Correlations
+{{ correlations | tojson(indent=2) | truncate(2000) }}
+{% endif %}
+
+## Instructions
+
+Write a comprehensive executive summary that includes:
+
+1. **Executive Overview** (2-3 sentences): Who is this person/entity? What is their online presence level?
+
+2. **Key Findings** (bullet list):
+   - Most significant data exposures
+   - Social media presence across platforms
+   - Any breach or leak involvement
+   - Geographic/location intelligence
+   - Professional/business associations
+
+3. **Risk Analysis** (1-2 paragraphs):
+   - What does a {{ risk_level | default('unknown') }} risk score of {{ risk_score | default('N/A') }}/10 mean for this target?
+   - Specific risks identified from the data
+   - Data that could enable social engineering or identity theft
+
+4. **Privacy Concerns** (bullet list):
+   - Most sensitive data points found
+   - Information that should be removed/protected
+
+5. **Recommendations** (numbered list):
+   - Actionable steps the subject should take to reduce their digital footprint
+   - Priority order: critical → high → medium
+
+Format your response as clean Markdown. Be factual and specific. Reference actual data found.
+Do not speculate beyond what the data shows. Be concise but thorough.

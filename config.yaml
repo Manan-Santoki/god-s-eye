@@ -1,0 +1,209 @@
+# ═══════════════════════════════════════════════════════════════
+# GOD_EYE — Module Configuration
+# This file controls which modules are enabled and their settings.
+# Override environment variables from .env for fine-grained control.
+# ═══════════════════════════════════════════════════════════════
+
+modules:
+  email:
+    validator:
+      enabled: true
+    breach_checker:
+      enabled: true
+      providers: [hibp, dehashed, intelx]
+    hunter:
+      enabled: true
+    reputation:
+      enabled: true
+    permutator:
+      enabled: true
+      max_permutations: 20
+
+  username:
+    sherlock:
+      enabled: true
+      timeout: 120
+      output_format: json
+    maigret:
+      enabled: false        # Slower but more thorough
+      timeout: 180
+    social_checker:
+      enabled: true
+    permutator:
+      enabled: true
+
+  phone:
+    validator:
+      enabled: true
+    lookup:
+      enabled: true
+      providers: [numverify, twilio]
+    voip_detector:
+      enabled: true
+
+  web:
+    google_cse:
+      enabled: true
+      max_results: 20
+      pages: 2
+    bing:
+      enabled: true
+      max_results: 20
+    duckduckgo:
+      enabled: true
+      max_results: 20
+    wayback:
+      enabled: true
+      max_snapshots: 10
+    google_dorker:
+      enabled: true
+      max_queries: 10
+      dork_templates:
+        - '"{target}" site:linkedin.com'
+        - '"{target}" site:github.com'
+        - '"{target}" filetype:pdf'
+        - '"{target}" inurl:resume OR inurl:cv'
+        - '"{target}" site:pastebin.com'
+        - 'intitle:"{target}" OR inurl:"{target}"'
+        - '"{target}" site:twitter.com'
+        - '"{target}" site:facebook.com'
+        - '"{target}" -site:linkedin.com -site:facebook.com -site:twitter.com'
+        - 'cache:"{target}"'
+
+  social:
+    github:
+      enabled: true
+      max_repos: 30
+      extract_commit_emails: true
+    reddit:
+      enabled: true
+      max_posts: 100
+      max_comments: 100
+    twitter:
+      enabled: true
+      max_tweets: 100
+    linkedin:
+      enabled: true
+      require_auth: true
+      max_profiles: 3
+    instagram:
+      enabled: true
+      require_auth: true
+      max_posts: 50
+    facebook:
+      enabled: true
+      require_auth: true
+    tiktok:
+      enabled: false       # Aggressive bot detection; disabled by default
+    youtube:
+      enabled: true
+      max_videos: 50
+    medium:
+      enabled: true
+
+  domain:
+    whois:
+      enabled: true
+    dns:
+      enabled: true
+      record_types: [A, AAAA, MX, NS, TXT, SOA, CNAME, SRV]
+    subdomains:
+      enabled: true
+      methods: [crt_sh, securitytrails, bruteforce]
+      bruteforce_wordlist: default  # default | extended | custom
+    certificates:
+      enabled: true
+    tech_stack:
+      enabled: true
+
+  network:
+    ip_lookup:
+      enabled: true
+      providers: [ipinfo, abuseipdb]
+    shodan:
+      enabled: true
+    censys:
+      enabled: false       # Requires paid account for meaningful results
+    geolocation:
+      enabled: true
+    virustotal:
+      enabled: true
+
+  visual:
+    face_recognition:
+      enabled: true
+      model: buffalo_l     # buffalo_l | buffalo_s (smaller, faster)
+      similarity_threshold: 0.6
+      possible_match_threshold: 0.4
+    reverse_image:
+      enabled: true
+      engines: [google, tineye, yandex]
+    exif:
+      enabled: true
+      extract_gps: true
+      reverse_geocode: true
+    downloader:
+      enabled: true
+      max_images: 100
+      deduplicate: true    # Skip images with same hash
+
+  breach:
+    hibp:
+      enabled: true
+      check_pastes: true
+    dehashed:
+      enabled: true
+    intelx:
+      enabled: true
+      max_results: 20
+    paste_monitor:
+      enabled: true
+
+  business:
+    opencorporates:
+      enabled: true
+    clearbit:
+      enabled: false
+    professional:
+      enabled: false
+
+# ── Stealth / Anti-Detection ─────────────────────────────────────
+stealth:
+  user_agent_rotation: true
+  random_delays:
+    min_ms: 1000
+    max_ms: 5000
+  headless: true           # Set false only for debugging
+  disable_webrtc: true
+  randomize_canvas: true
+  randomize_webgl: true
+  randomize_timezone: true
+  randomize_viewport: true
+  viewport_base:
+    width: 1920
+    height: 1080
+  viewport_jitter: 50      # ± pixels
+
+# ── Output ────────────────────────────────────────────────────────
+output:
+  formats: [json, markdown, html]
+  include_raw_data: true
+  include_screenshots: true
+  include_images: true
+  redact_sensitive: false  # Set true to redact passwords in reports
+
+# ── AI ────────────────────────────────────────────────────────────
+ai:
+  auto_generate_report: true
+  correlation_analysis: true
+  risk_scoring: true
+  timeline_building: true
+  summarization: true
+  max_data_size_kb: 512    # Truncate module data before sending to LLM
+
+# ── Rate Limiting (global overrides) ─────────────────────────────
+rate_limits:
+  global_max_rps: 50       # Max requests/sec across all modules
+  default_rpm: 60          # Default per-module RPM if not specified
+  browser_concurrent: 3    # Max concurrent Playwright browser contexts
+  api_concurrent: 10       # Max concurrent API requests

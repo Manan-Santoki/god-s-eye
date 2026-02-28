@@ -1,0 +1,258 @@
+name: GOD_EYE CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  schedule:
+    # Run weekly to catch dependency issues
+    - cron: "0 8 * * 1"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.11"
+  # Disable live API calls in CI
+  ENABLE_AI_CORRELATION: "false"
+  ENABLE_AI_REPORTS: "false"
+  LOG_LEVEL: "DEBUG"
+  LOG_FORMAT: "console"
+
+jobs:
+  # ── Lint & Format ─────────────────────────────────────────────────────────
+  lint:
+    name: Lint & Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install linting tools
+        run: pip install ruff mypy
+
+      - name: Lint with ruff
+        run: ruff check app/ tests/ scripts/
+
+      - name: Check formatting with ruff
+        run: ruff format --check app/ tests/ scripts/
+
+  # ── Unit Tests ────────────────────────────────────────────────────────────
+  test:
+    name: Unit Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install -e ".[test]"
+          # Install optional deps that have fast installs
+          pip install imagehash geoip2 ipwhois || true
+
+      - name: Create test data directories
+        run: mkdir -p data/logs data/requests data/cache data/templates
+
+      - name: Copy templates
+        run: |
+          cp data/templates/report.html.jinja2 data/templates/ 2>/dev/null || true
+          cp data/templates/report.md.jinja2 data/templates/ 2>/dev/null || true
+
+      - name: Run unit tests
+        env:
+          DATA_DIR: /tmp/god_eye_test_data
+        run: |
+          pytest tests/ \
+            -v \
+            --tb=short \
+            -m "not slow and not network and not browser" \
+            --junit-xml=test-results.xml \
+            --cov=app \
+            --cov-report=xml \
+            --cov-report=term-missing
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-${{ matrix.python-version }}
+          path: test-results.xml
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        if: matrix.python-version == '3.11'
+        with:
+          files: ./coverage.xml
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  # ── Import Smoke Test ─────────────────────────────────────────────────────
+  smoke-test:
+    name: Import Smoke Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install core dependencies
+        run: pip install -e ".[prod]"
+
+      - name: Test core imports
+        run: |
+          python -c "from app.core.config import settings; print('config OK')"
+          python -c "from app.core.constants import TargetType; print('constants OK')"
+          python -c "from app.modules.base import BaseModule; print('base module OK')"
+          python -c "from app.utils.validators import is_valid_email; print('validators OK')"
+          python -c "from app.utils.text_analysis import extract_emails; print('text_analysis OK')"
+          python -c "from app.utils.fingerprint import fingerprint_target; print('fingerprint OK')"
+
+      - name: Test module auto-discovery
+        run: |
+          python -c "
+          from app.modules import get_registry
+          registry = get_registry()
+          print(f'Loaded {len(registry)} modules')
+          assert len(registry) > 0, 'No modules loaded!'
+          for name, cls in list(registry.items())[:5]:
+              print(f'  - {name}: {cls.__name__}')
+          "
+
+      - name: Test FastAPI app initialization
+        run: |
+          python -c "
+          import asyncio
+          from fastapi.testclient import TestClient
+          from app.main import app
+          client = TestClient(app)
+          resp = client.get('/')
+          assert resp.status_code == 200
+          print('FastAPI app: OK', resp.json())
+          "
+
+  # ── Docker Build ──────────────────────────────────────────────────────────
+  docker-build:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image (no push)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          tags: god-eye:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          target: production
+
+  # ── Security Scan ─────────────────────────────────────────────────────────
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install bandit
+        run: pip install bandit[toml]
+
+      - name: Run bandit security scan
+        run: |
+          bandit -r app/ \
+            -x app/modules/visual/face_recognition.py \
+            --severity-level medium \
+            --confidence-level medium \
+            --format json \
+            -o bandit-results.json || true
+          cat bandit-results.json | python -c "
+          import json, sys
+          data = json.load(sys.stdin)
+          results = data.get('results', [])
+          high = [r for r in results if r['issue_severity'] == 'HIGH']
+          if high:
+              print(f'HIGH severity issues: {len(high)}')
+              for r in high[:5]:
+                  print(f'  {r[\"filename\"]}:{r[\"line_number\"]} - {r[\"issue_text\"]}')
+          else:
+              print('No HIGH severity issues found')
+          "
+
+      - name: Upload security results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bandit-results
+          path: bandit-results.json
+
+  # ── Release ───────────────────────────────────────────────────────────────
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [lint, test, smoke-test]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version from pyproject.toml
+        id: version
+        run: |
+          VERSION=$(python -c "import tomllib; f=open('pyproject.toml','rb'); d=tomllib.load(f); print(d['project']['version'])")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=v$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Check if release tag exists
+        id: check_tag
+        run: |
+          if git rev-parse "${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create GitHub Release
+        if: steps.check_tag.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: "GOD_EYE ${{ steps.version.outputs.tag }}"
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

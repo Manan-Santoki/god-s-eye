@@ -1,0 +1,104 @@
+# ── Secrets ─────────────────────────────────────────────────────
+.env
+*.env.local
+proxies.txt
+credentials*.json
+*.pem
+*.key
+*.crt
+
+# ── Python ───────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+.wheel/
+*.whl
+*.tar.gz
+MANIFEST
+pip-wheel-metadata/
+share/python-wheels/
+.Python
+env/
+venv/
+.venv/
+ENV/
+env.bak/
+venv.bak/
+
+# ── Testing ──────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+junit.xml
+
+# ── Type Checking ────────────────────────────────────────────────
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pytype/
+.pyre/
+
+# ── IDEs ─────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ── Data & Scan Results ───────────────────────────────────────────
+# Scan results contain PII — never commit
+data/requests/
+data/cache/*.db
+data/logs/
+data/sessions/
+!data/templates/
+!data/.gitkeep
+
+# ── Docker ───────────────────────────────────────────────────────
+docker-compose.override.yml
+
+# ── Browser ──────────────────────────────────────────────────────
+.playwright/
+ms-playwright/
+
+# ── ML Models ────────────────────────────────────────────────────
+*.onnx
+*.pt
+*.pth
+*.bin
+models/
+
+# ── Node.js (for frontend dashboard) ─────────────────────────────
+node_modules/
+.next/
+.nuxt/
+dist/
+.cache/
+*.lock
+!package-lock.json
+
+# ── Logs ─────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ── Misc ─────────────────────────────────────────────────────────
+*.bak
+*.tmp
+*.temp
+.cache/
+.sass-cache/

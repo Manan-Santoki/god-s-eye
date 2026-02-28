@@ -1,0 +1,218 @@
+version: '3.8'
+
+# ═══════════════════════════════════════════════════════════════
+# GOD_EYE — Docker Compose
+# Services: Neo4j, Redis, Gluetun VPN, App
+# Usage:
+#   docker-compose up -d               # Start all services
+#   docker-compose up -d neo4j redis   # Infrastructure only
+#   docker-compose logs -f app         # Watch app logs
+# ═══════════════════════════════════════════════════════════════
+
+services:
+
+  # ── Graph Database ──────────────────────────────────────────
+  neo4j:
+    image: neo4j:5-community
+    container_name: god_eye_neo4j
+    restart: unless-stopped
+    ports:
+      - "7474:7474"   # Neo4j Browser UI
+      - "7687:7687"   # Bolt protocol (app connection)
+    environment:
+      NEO4J_AUTH: ${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-god_eye_password}
+      NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_dbms_security_procedures_unrestricted: "apoc.*"
+      NEO4J_dbms_memory_heap_initial__size: "512m"
+      NEO4J_dbms_memory_heap_max__size: "1g"
+      NEO4J_dbms_memory_pagecache_size: "512m"
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+      - neo4j_plugins:/plugins
+    healthcheck:
+      test: ["CMD", "neo4j", "status"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - god_eye_internal
+
+  # ── Cache & Queue ────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: god_eye_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    networks:
+      - god_eye_internal
+
+  # ── VPN Gateway (Gluetun) ────────────────────────────────────
+  # Routes the app's outbound traffic through a VPN tunnel.
+  # Supports: NordVPN, ExpressVPN, ProtonVPN, Mullvad, Surfshark,
+  #           IPVanish, Private Internet Access, Windscribe, and more.
+  # Docs: https://github.com/qdm12/gluetun/wiki
+  # Set VPN_ENABLED=true in .env to activate.
+  gluetun:
+    image: qmcgaw/gluetun:latest
+    container_name: god_eye_vpn
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    ports:
+      - "8888:8888/tcp"   # HTTP proxy (for external use)
+      - "8388:8388/tcp"   # Shadowsocks
+      - "8388:8388/udp"
+    environment:
+      # ── VPN Provider Selection ──
+      # See https://github.com/qdm12/gluetun/wiki for all providers
+      VPN_SERVICE_PROVIDER: ${VPN_PROVIDER:-nordvpn}
+      VPN_TYPE: ${VPN_TYPE:-wireguard}  # wireguard | openvpn
+
+      # ── WireGuard (NordVPN, Mullvad, ProtonVPN, etc.) ──
+      WIREGUARD_PRIVATE_KEY: ${WIREGUARD_PRIVATE_KEY:-}
+      WIREGUARD_ADDRESSES: ${WIREGUARD_ADDRESSES:-}
+
+      # ── OpenVPN Credentials ──
+      OPENVPN_USER: ${VPN_USERNAME:-}
+      OPENVPN_PASSWORD: ${VPN_PASSWORD:-}
+
+      # ── Server Selection ──
+      SERVER_COUNTRIES: ${VPN_COUNTRIES:-United States}
+      SERVER_CITIES: ${VPN_CITIES:-}
+
+      # ── DNS over TLS (privacy) ──
+      DOT: "on"
+      DOT_PROVIDERS: cloudflare,quad9
+      BLOCK_MALICIOUS: "on"
+
+      # ── Firewall ──
+      FIREWALL_OUTBOUND_SUBNETS: "172.16.0.0/12,10.0.0.0/8"  # Allow internal comms
+      FIREWALL_VPN_INPUT_PORTS: ${GLUETUN_INCOMING_PORTS:-}
+
+      # ── HTTP Proxy (built-in) ──
+      HTTPPROXY: "on"
+      HTTPPROXY_LOG: "off"
+
+      # ── Shadowsocks Proxy (built-in) ──
+      SHADOWSOCKS: "on"
+
+      # ── Health check ──
+      HEALTH_VPN_DURATION_INITIAL: 6s
+      HEALTH_VPN_DURATION_ADDITION: 5s
+    volumes:
+      - gluetun_data:/gluetun
+    healthcheck:
+      test: ["CMD", "/gluetun-entrypoint", "healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - god_eye_internal
+    profiles:
+      - vpn  # Only start when: docker-compose --profile vpn up
+
+  # ── Main Application ─────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: god_eye_app
+    restart: unless-stopped
+    depends_on:
+      neo4j:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      NEO4J_URI: bolt://neo4j:7687
+      REDIS_URL: redis://redis:6379
+    volumes:
+      - ./data:/app/data
+      - ./config.yaml:/app/config.yaml:ro
+      - ./.env:/app/.env:ro
+    ports:
+      - "${API_PORT:-8000}:8000"
+    networks:
+      - god_eye_internal
+    profiles:
+      - app  # Only start when: docker-compose --profile app up
+
+  # ── App via VPN (alternative to 'app' above) ──────────────────
+  # Routes ALL app traffic through the Gluetun VPN container.
+  # Use this for maximum privacy during scans.
+  app_via_vpn:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: god_eye_app_vpn
+    restart: unless-stopped
+    depends_on:
+      neo4j:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      gluetun:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      NEO4J_URI: bolt://neo4j:7687
+      REDIS_URL: redis://redis:6379
+    volumes:
+      - ./data:/app/data
+      - ./config.yaml:/app/config.yaml:ro
+    network_mode: "service:gluetun"  # All traffic via VPN
+    profiles:
+      - vpn  # Only start with VPN profile
+
+  # ── Network Graph Visualizer (optional) ──────────────────────
+  neo4j_bloom:
+    image: neo4j/neo4j-bloom:latest
+    container_name: god_eye_bloom
+    restart: unless-stopped
+    ports:
+      - "7476:7474"
+    environment:
+      NEO4J_SERVER_URL: bolt://neo4j:7687
+    depends_on:
+      - neo4j
+    networks:
+      - god_eye_internal
+    profiles:
+      - ui  # Only start with: docker-compose --profile ui up
+
+networks:
+  god_eye_internal:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  neo4j_data:
+    driver: local
+  neo4j_logs:
+    driver: local
+  neo4j_plugins:
+    driver: local
+  redis_data:
+    driver: local
+  gluetun_data:
+    driver: local

@@ -2,359 +2,470 @@
 
 ---
 
-## 1. Local Development Setup
+## Table of Contents
+
+1. [Local Development](#1-local-development)
+2. [Docker Compose (Recommended)](#2-docker-compose-recommended)
+3. [Running with VPN (Gluetun)](#3-running-with-vpn-gluetun)
+4. [Production Checklist](#4-production-checklist)
+5. [Database Reference](#5-database-reference)
+6. [Proxy Configuration](#6-proxy-configuration)
+7. [System Requirements](#7-system-requirements)
+8. [Backup & Recovery](#8-backup--recovery)
+
+---
+
+## 1. Local Development
 
 ### Prerequisites
 
-| Requirement | Version | Purpose |
-|---|---|---|
-| Python | 3.11+ | Core runtime |
-| Docker | 24+ | Neo4j, Redis containers |
-| Docker Compose | 2.20+ | Service orchestration |
-| Node.js | 18+ | Optional: web dashboard |
-| Git | 2.40+ | Version control |
+| Requirement | Version | Install |
+|-------------|---------|---------|
+| Python | 3.11+ | [python.org](https://www.python.org/downloads/) |
+| Docker | 24+ | [docs.docker.com](https://docs.docker.com/get-docker/) |
+| Docker Compose | v2 | Bundled with Docker Desktop |
 
-### Step-by-Step Local Setup
+### Full Setup
 
 ```bash
-# 1. Clone and enter project
+# 1. Clone and enter the repo
 git clone https://github.com/yourorg/god_eye.git
 cd god_eye
 
-# 2. Python environment
-python -m venv venv
-source venv/bin/activate
+# 2. Create virtual environment
+python3 -m venv .venv
+source .venv/bin/activate          # Linux / macOS
+# .venv\Scripts\activate           # Windows
+
+# 3. Install all dependencies
 pip install -e ".[dev]"
 
-# 3. Install Playwright browsers
-playwright install chromium firefox
-playwright install-deps  # System dependencies for Linux
+# 4. Install Playwright browser
+playwright install chromium
 
-# 4. Start infrastructure
-docker-compose up -d neo4j redis
+# 5. Install Playwright system dependencies (Linux only)
+#    If this fails due to apt GPG errors (common on WSL2), see note below.
+playwright install-deps chromium
 
-# 5. Wait for services to be ready
-docker-compose logs -f neo4j  # Wait for "Started"
-# Or use health check:
-god_eye health-check
+# 6. Start Neo4j and Redis
+docker compose up -d neo4j redis
 
-# 6. Configure environment
+# 7. Configure environment
 cp .env.example .env
-# Edit .env with your API keys
+# Edit .env — at minimum set NEO4J_PASSWORD
 
-# 7. Run setup wizard
-god_eye setup
+# 8. Run interactive API key setup
+python scripts/setup_apis.py
 
-# 8. Verify everything works
-god_eye health-check
-god_eye scan -e test@example.com --fast --verbose
+# 9. Verify everything
+python scripts/health_check.py
+
+# 10. Seed demo data (optional)
+python scripts/seed_test_data.py --target-type email --count 3
 ```
 
----
+### WSL2 — playwright install-deps Fix
 
-## 2. Docker Deployment
-
-### Dockerfile
-
-```dockerfile
-FROM python:3.11-slim AS base
-
-# System dependencies for Playwright and image processing
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    # Playwright browser dependencies
-    libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 \
-    libcups2 libdrm2 libdbus-1-3 libxkbcommon0 \
-    libatspi2.0-0 libxcomposite1 libxdamage1 libxfixes3 \
-    libxrandr2 libgbm1 libpango-1.0-0 libcairo2 libasound2 \
-    # WeasyPrint (PDF generation)
-    libpango1.0-dev libcairo2-dev libgdk-pixbuf2.0-dev \
-    # Image processing
-    libjpeg62-turbo-dev libpng-dev \
-    # General utilities
-    wget curl git \
-    && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /app
-
-# Install Python dependencies
-COPY pyproject.toml .
-RUN pip install --no-cache-dir -e "."
-
-# Install Playwright browsers
-RUN playwright install chromium firefox
-RUN playwright install-deps
-
-# Download InsightFace models (cached in image)
-RUN python -c "from insightface.app import FaceAnalysis; app = FaceAnalysis(name='buffalo_l'); app.prepare(ctx_id=-1)"
-
-# Copy application code
-COPY . .
-
-# Create data directories
-RUN mkdir -p /app/data/requests /app/data/cache /app/data/logs /app/data/sessions
-
-# Non-root user for security
-RUN useradd -m -s /bin/bash godeye && chown -R godeye:godeye /app
-USER godeye
-
-ENTRYPOINT ["python", "-m", "app.cli"]
-```
-
-### docker-compose.yml (Full Production)
-
-```yaml
-version: '3.8'
-
-services:
-  # ── Application ──
-  god_eye:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    depends_on:
-      neo4j:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    env_file: .env
-    volumes:
-      - ./data:/app/data            # Persistent scan data
-      - ./config.yaml:/app/config.yaml:ro
-    networks:
-      - god_eye_net
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 4G                 # InsightFace needs RAM
-          cpus: '2'
-
-  # ── FastAPI Server (optional) ──
-  god_eye_api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
-    depends_on:
-      neo4j:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    env_file: .env
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./data:/app/data
-      - ./config.yaml:/app/config.yaml:ro
-    networks:
-      - god_eye_net
-    restart: unless-stopped
-
-  # ── Neo4j Graph Database ──
-  neo4j:
-    image: neo4j:5-community
-    ports:
-      - "7474:7474"                  # Browser UI
-      - "7687:7687"                  # Bolt protocol
-    environment:
-      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-god_eye_password}
-      NEO4J_PLUGINS: '["apoc"]'
-      NEO4J_server_memory_heap_initial__size: 512m
-      NEO4J_server_memory_heap_max__size: 1G
-      NEO4J_server_memory_pagecache_size: 512m
-    volumes:
-      - neo4j_data:/data
-      - neo4j_logs:/logs
-    networks:
-      - god_eye_net
-    healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:7474 || exit 1"]
-      interval: 10s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
-    restart: unless-stopped
-
-  # ── Redis Cache & Queue ──
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
-    volumes:
-      - redis_data:/data
-    networks:
-      - god_eye_net
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-    restart: unless-stopped
-
-  # ── Ollama (Self-Hosted LLM, optional) ──
-  ollama:
-    image: ollama/ollama:latest
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-    networks:
-      - god_eye_net
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 8G
-    # After first start, pull a model:
-    # docker exec -it god_eye-ollama-1 ollama pull llama3
-
-  # ── TOR Proxy (optional) ──
-  tor:
-    image: dperson/torproxy:latest
-    ports:
-      - "9050:9050"                  # SOCKS proxy
-      - "9051:9051"                  # Control port
-    environment:
-      PASSWORD: ${TOR_PASSWORD:-}
-    networks:
-      - god_eye_net
-    restart: unless-stopped
-    profiles:
-      - tor                          # Only start with: docker-compose --profile tor up
-
-volumes:
-  neo4j_data:
-  neo4j_logs:
-  redis_data:
-  ollama_data:
-
-networks:
-  god_eye_net:
-    driver: bridge
-```
-
-### Running with Docker
+If `playwright install-deps` fails with a Docker apt GPG error:
 
 ```bash
-# Start all services
-docker-compose up -d
+# Option A: Fix the Docker apt key (recommended)
+sudo apt-key adv --fetch-keys https://download.docker.com/linux/ubuntu/gpg 2>/dev/null || true
+sudo apt-get update
+playwright install-deps chromium
 
-# Start with TOR proxy
-docker-compose --profile tor up -d
+# Option B: Install browser dependencies manually
+sudo apt-get install -y \
+    libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libdbus-1-3 \
+    libxkbcommon0 libatspi2.0-0 libxcomposite1 libxdamage1 libxfixes3 \
+    libxrandr2 libgbm1 libpango-1.0-0 libcairo2 libasound2 libxss1
 
-# Run a scan
-docker-compose run --rm god_eye scan -t "John Doe" -e john@example.com
-
-# View logs
-docker-compose logs -f god_eye
-
-# Enter interactive mode
-docker-compose run --rm -it god_eye interactive
-
-# Pull Ollama model (if using self-hosted LLM)
-docker-compose exec ollama ollama pull llama3
-
-# Stop all services
-docker-compose down
-
-# Stop and remove volumes (WARNING: deletes all data)
-docker-compose down -v
+# Option C: Skip install-deps entirely
+#   WSL2 usually has sufficient system libraries. Try running a scan
+#   first — Chromium often works without the explicit dep install.
 ```
 
 ---
 
-## 3. Production Checklist
+## 2. Docker Compose (Recommended)
+
+The `docker-compose.yml` defines five services with Docker profiles so you only start what you need.
+
+### Services and Profiles
+
+| Service | Profile | Description |
+|---------|---------|-------------|
+| `neo4j` | *(always)* | Neo4j 5 graph database |
+| `redis` | *(always)* | Redis 7 cache/queue |
+| `gluetun` | `vpn` | Gluetun VPN gateway |
+| `app` | `app` | GOD_EYE CLI/API app |
+| `app_via_vpn` | `vpn` | App with all traffic routed through VPN |
+| `neo4j_bloom` | `ui` | Neo4j Bloom graph visualizer |
+
+### Common Compose Commands
+
+```bash
+# ── Infrastructure only (most common for dev) ──
+docker compose up -d neo4j redis
+
+# ── Full stack (infra + app) ──
+docker compose --profile app up -d
+
+# ── Full stack with VPN ──
+docker compose --profile vpn up -d
+
+# ── Full stack with Neo4j Bloom UI ──
+docker compose --profile app --profile ui up -d
+
+# ── View logs ──
+docker compose logs -f                  # All services
+docker compose logs -f neo4j            # Neo4j only
+docker compose logs -f app              # App only
+
+# ── Restart a service ──
+docker compose restart neo4j
+
+# ── Stop all services ──
+docker compose down
+
+# ── Stop and wipe all data (DESTRUCTIVE) ──
+docker compose down -v
+
+# ── Run a scan inside Docker ──
+docker compose run --rm app scan --email user@example.com
+
+# ── Open a shell in the app container ──
+docker compose exec app bash
+```
+
+### Building the App Image
+
+```bash
+docker compose build app
+
+# Or with no cache
+docker compose build --no-cache app
+```
+
+### Environment Variables in Docker
+
+When running with `docker compose`, the app container reads `.env` via `env_file: .env`.
+Infrastructure URIs are overridden automatically:
+
+```yaml
+environment:
+  NEO4J_URI: bolt://neo4j:7687      # Use service name, not localhost
+  REDIS_URL: redis://redis:6379
+```
+
+You do **not** need to change `NEO4J_URI` in `.env` for Docker — the compose file overrides it.
+
+---
+
+## 3. Running with VPN (Gluetun)
+
+[Gluetun](https://github.com/qdm12/gluetun) routes all app traffic through a VPN tunnel.
+Supports NordVPN, ProtonVPN, Mullvad, ExpressVPN, Surfshark, Private Internet Access, and more.
+
+### Configure in `.env`
+
+```ini
+VPN_ENABLED=true
+VPN_PROVIDER=nordvpn               # nordvpn | protonvpn | mullvad | expressvpn
+                                   # surfshark | privateinternetaccess | windscribe | ipvanish
+
+# ── WireGuard (recommended) ──
+VPN_TYPE=wireguard
+WIREGUARD_PRIVATE_KEY=your_wg_private_key
+WIREGUARD_ADDRESSES=10.5.0.2/32
+
+# ── OpenVPN (alternative) ──
+# VPN_TYPE=openvpn
+# VPN_USERNAME=your_vpn_user
+# VPN_PASSWORD=your_vpn_pass
+
+# ── Server selection (optional) ──
+VPN_COUNTRIES=United States
+VPN_CITIES=New York
+```
+
+### Start with VPN
+
+```bash
+docker compose --profile vpn up -d
+
+# Check VPN is connected
+docker compose logs gluetun | grep "VPN is up"
+# Expected: "VPN is up"
+
+# Verify your VPN IP
+docker compose exec app_via_vpn curl -s https://ipinfo.io/ip
+```
+
+### How It Works
+
+- The `gluetun` container establishes the VPN tunnel and exposes an HTTP proxy on port `8888`
+- `app_via_vpn` uses `network_mode: "service:gluetun"` — all traffic goes through the VPN
+- `settings.get_proxy_url()` returns `http://gluetun:8888` when `VPN_ENABLED=true`
+- All `aiohttp` requests and Playwright browser sessions use this proxy
+
+### Getting WireGuard Keys
+
+**NordVPN:**
+```bash
+# Using NordVPN CLI
+nordvpn set technology NordLynx
+nordvpn set killswitch on
+# Get private key from NordVPN WireGuard config generator in account portal
+```
+
+**ProtonVPN:**
+```
+1. Log in to proton.me/vpn
+2. Download → WireGuard configuration
+3. Copy PrivateKey and Address from the .conf file
+```
+
+**Mullvad:**
+```bash
+# Using Mullvad CLI
+mullvad tunnel wireguard key generate
+mullvad tunnel wireguard key check
+# Get key from account.mullvad.net → WireGuard keys
+```
+
+---
+
+## 4. Production Checklist
 
 ### Security
 
-- [ ] Change default Neo4j password in `.env`
-- [ ] Use strong, unique passwords for all credentials
-- [ ] Never commit `.env` to version control
-- [ ] Run application as non-root user
-- [ ] Enable audit logging (`AUDIT_LOG_ENABLED=true`)
-- [ ] Restrict network access (firewall rules)
-- [ ] Use HTTPS for FastAPI (reverse proxy with nginx/Caddy)
-- [ ] Regular security updates for Docker images
+- [ ] Change `NEO4J_PASSWORD` from the default `god_eye_password`
+- [ ] Set strong, unique passwords for all infrastructure
+- [ ] Never commit `.env` to version control (it's in `.gitignore`)
+- [ ] Run app as a non-root user (Docker image already does this)
+- [ ] Keep `AUDIT_LOG_ENABLED=true` for accountability
+- [ ] Place FastAPI behind a reverse proxy (nginx / Caddy) with TLS
+- [ ] Restrict Neo4j and Redis ports to internal network only (remove public port mappings)
+- [ ] Set `APP_ENV=production` in `.env`
+- [ ] Set `CONSENT_REQUIRED=true` to enforce ethics consent per scan
 
-### Performance
+### Performance Tuning
 
-- [ ] Allocate sufficient RAM (min 4GB, 8GB+ recommended)
-- [ ] SSD storage for Neo4j and scan data
-- [ ] Adjust `MAX_CONCURRENT_MODULES` based on available resources
-- [ ] Configure Neo4j memory (`heap` and `pagecache`)
-- [ ] Monitor Redis memory usage
-- [ ] Set up log rotation for `data/logs/`
-
-### Backup
-
-```bash
-# Backup Neo4j
-docker-compose exec neo4j neo4j-admin database dump neo4j --to-path=/dumps
-docker cp $(docker-compose ps -q neo4j):/dumps ./backups/
-
-# Backup scan data
-tar -czf backup_$(date +%Y%m%d).tar.gz data/
-
-# Backup Redis
-docker-compose exec redis redis-cli BGSAVE
+```ini
+# .env — performance settings
+MAX_CONCURRENT_MODULES=15          # Increase if CPU/network allows
+MAX_CONCURRENT_BROWSERS=5          # Increase RAM if you raise this
+REQUEST_TIMEOUT_SECONDS=45         # Increase for slow APIs
 ```
 
-### Monitoring
+```yaml
+# docker-compose.yml — resource limits for app
+deploy:
+  resources:
+    limits:
+      memory: 8G
+      cpus: '4'
+```
 
-- [ ] Set up log aggregation (ELK stack, Loki, etc.)
-- [ ] Monitor container health via Docker healthchecks
-- [ ] Set up disk space alerts (scans can generate lots of data)
-- [ ] Monitor API rate limit consumption
+Neo4j memory (in `docker-compose.yml`):
+```yaml
+NEO4J_dbms_memory_heap_initial__size: "1g"
+NEO4J_dbms_memory_heap_max__size: "2g"
+NEO4J_dbms_memory_pagecache_size: "1g"
+```
+
+### Nginx Reverse Proxy (HTTPS)
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name osint.yourcompany.com;
+
+    ssl_certificate     /etc/ssl/certs/fullchain.pem;
+    ssl_certificate_key /etc/ssl/private/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        # WebSocket support (for /ws/* endpoints)
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
+```
 
 ---
 
-## 4. Proxy Infrastructure
+## 5. Database Reference
 
-### Option A: Residential Proxy Service
+### Neo4j — Graph Database
 
-Recommended providers: Smartproxy, BrightData, IPRoyal
+| Setting | Default | Notes |
+|---------|---------|-------|
+| `NEO4J_URI` | `bolt://localhost:7687` | Use `bolt://neo4j:7687` in Docker |
+| `NEO4J_USER` | `neo4j` | Default admin user |
+| `NEO4J_PASSWORD` | `god_eye_password` | **Change this!** |
+
+**Web UI:** http://localhost:7474
+
+GOD_EYE creates these node labels in Neo4j:
+`Person`, `Email`, `Username`, `Domain`, `IP`, `Phone`, `Location`, `Image`, `Breach`, `Company`
+
+All nodes are created with `MERGE` (no duplicates) and linked via `RELATED_TO`, `HAS_EMAIL`, `FOUND_ON`, `BREACHED_IN`, and other relationship types.
+
+```cypher
+-- Example Cypher queries in Neo4j Browser
+MATCH (p:Person)-[:HAS_EMAIL]->(e:Email) RETURN p, e LIMIT 25
+MATCH (e:Email)-[:BREACHED_IN]->(b:Breach) RETURN e, b ORDER BY b.date DESC
+MATCH path = (p:Person)-[*1..3]-(n) WHERE p.name = "John Doe" RETURN path
+```
+
+### Redis — Cache & Queue
+
+| Setting | Default |
+|---------|---------|
+| `REDIS_URL` | `redis://localhost:6379` |
+
+Keys used by GOD_EYE:
+- `god_eye:progress:{request_id}` — scan progress (JSON)
+- `god_eye:session:{session_id}` — browser session state
+- `god_eye:rate:{api_name}` — distributed rate limit counters
+- `god_eye:queue:scans` — scan job queue (LPUSH/BRPOP)
+
+### SQLite — Local Cache
+
+Location: `data/cache/god_eye.db` (auto-created on first run)
+
+| Table | Purpose |
+|-------|---------|
+| `api_cache` | Cached API responses with TTL |
+| `rate_limits` | Per-API rate limit counters |
+| `scans` | Scan history and metadata |
+| `audit_log` | Immutable audit trail of all searches |
+
+No configuration needed — SQLite is embedded and requires no server.
+
+---
+
+## 6. Proxy Configuration
+
+### Option A — Gluetun VPN (Recommended)
+
+See [Section 3](#3-running-with-vpn-gluetun) above.
+
+### Option B — Proxy File (Static List)
 
 ```ini
 # .env
 USE_PROXY=true
 PROXY_LIST_FILE=proxies.txt
-PROXY_ROTATION_STRATEGY=round_robin
+PROXY_ROTATION_STRATEGY=round_robin   # round_robin | random | least_used
 ```
 
 ```
-# proxies.txt (one per line)
+# proxies.txt — one proxy per line
 http://user:pass@gate.smartproxy.com:7777
 http://user:pass@gate.smartproxy.com:7778
-http://user:pass@gate.smartproxy.com:7779
+socks5://user:pass@socks-proxy.example.com:1080
 ```
 
-### Option B: TOR Network
+Recommended residential proxy providers: Smartproxy, BrightData, IPRoyal
+
+### Option C — TOR Network
 
 ```ini
 # .env
 TOR_ENABLED=true
 TOR_SOCKS_PORT=9050
 TOR_CONTROL_PORT=9051
-TOR_PASSWORD=your_tor_password
+TOR_PASSWORD=your_control_password
 ```
 
 ```bash
-# Start with TOR profile
-docker-compose --profile tor up -d
+# Start with TOR (using optional TOR service in docker-compose.yml)
+# Add the tor service to docker-compose.yml from DEPLOYMENT.md extras
+docker compose --profile tor up -d tor
 ```
 
-### Option C: Self-Hosted Proxy Pool
-
-For advanced users: set up multiple VPS instances as proxies using Squid or 3proxy.
+TOR circuits are rotated automatically every 30 requests via the control port.
 
 ---
 
-## 5. System Requirements
+## 7. System Requirements
 
-| Deployment | CPU | RAM | Storage | Network |
-|---|---|---|---|---|
-| Minimal (API only) | 2 cores | 2 GB | 10 GB | Broadband |
-| Standard (with browser) | 4 cores | 4 GB | 50 GB | Broadband |
-| Full (with InsightFace) | 4 cores | 8 GB | 100 GB | Broadband |
-| Production server | 8 cores | 16 GB | 500 GB | Dedicated |
+| Deployment Mode | CPU | RAM | Disk |
+|----------------|-----|-----|------|
+| API keys only (no browser, no AI) | 2 cores | 2 GB | 10 GB |
+| Standard (browser automation) | 4 cores | 4 GB | 50 GB |
+| With face recognition (InsightFace) | 4 cores | 8 GB | 100 GB |
+| Full production server | 8 cores | 16 GB | 500 GB |
+
+**WSL2 on Windows:** Allocate at least 6 GB RAM to WSL2 in `.wslconfig`:
+```ini
+# %USERPROFILE%\.wslconfig
+[wsl2]
+memory=8GB
+processors=4
+```
+
+---
+
+## 8. Backup & Recovery
+
+### Backup Neo4j
+
+```bash
+# Create a database dump
+docker compose exec neo4j neo4j-admin database dump neo4j --to-path=/var/lib/neo4j/dumps
+
+# Copy dump to host
+docker cp god_eye_neo4j:/var/lib/neo4j/dumps/neo4j.dump ./backups/neo4j_$(date +%Y%m%d).dump
+```
+
+### Backup Scan Data
+
+```bash
+# All scan results, reports, and logs
+tar -czf god_eye_data_$(date +%Y%m%d).tar.gz data/
+```
+
+### Backup Redis (if using persistence)
+
+```bash
+docker compose exec redis redis-cli BGSAVE
+docker cp god_eye_redis:/data/dump.rdb ./backups/redis_$(date +%Y%m%d).rdb
+```
+
+### Restore Neo4j
+
+```bash
+# Stop the app first
+docker compose stop app
+
+# Restore
+docker cp ./backups/neo4j_backup.dump god_eye_neo4j:/var/lib/neo4j/dumps/
+docker compose exec neo4j neo4j-admin database load neo4j \
+    --from-path=/var/lib/neo4j/dumps --overwrite-destination
+
+docker compose start app
+```
+
+### Clear All Data (Fresh Start)
+
+```bash
+# Remove scan results only (keep config)
+python scripts/seed_test_data.py --clear
+
+# Remove Docker volumes (Neo4j + Redis data)
+docker compose down -v
+
+# Remove all data dirs
+rm -rf data/requests/ data/cache/ data/logs/ data/sessions/
+mkdir -p data/requests data/cache data/logs data/sessions data/templates
+```

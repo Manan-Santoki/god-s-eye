@@ -120,14 +120,27 @@ god_eye = "app.cli:app"
 god-eye = "app.cli:app"
 
 [project.urls]
-Homepage = "https://github.com/yourorg/god_eye"
-Documentation = "https://github.com/yourorg/god_eye/blob/main/README.md"
-Repository = "https://github.com/yourorg/god_eye"
-Issues = "https://github.com/yourorg/god_eye/issues"
+Homepage = "https://github.com/Manan-Santoki/god-s-eye"
+Documentation = "https://github.com/Manan-Santoki/god-s-eye/blob/main/README.md"
+Repository = "https://github.com/Manan-Santoki/god-s-eye"
+Issues = "https://github.com/Manan-Santoki/god-s-eye/issues"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.build]
+exclude = [
+    ".git",
+    ".github",
+    ".claude",
+    ".venv*",
+    "venv*",
+    "env*",
+    "build/",
+    "dist/",
+    "*.spec",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["app"]

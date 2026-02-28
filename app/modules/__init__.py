@@ -58,6 +58,7 @@ def _discover_modules() -> dict[str, Any]:
     from app.modules.base import BaseModule
 
     registry: dict[str, Any] = {}
+    seen_classes: set[type[Any]] = set()
     modules_dir = Path(__file__).parent
 
     for finder, name, ispkg in pkgutil.walk_packages(
@@ -78,7 +79,9 @@ def _discover_modules() -> dict[str, Any]:
                     and issubclass(obj, BaseModule)
                     and obj is not BaseModule
                     and not inspect.isabstract(obj)
+                    and obj not in seen_classes
                 ):
+                    seen_classes.add(obj)
                     instance = obj()
                     meta = instance.metadata()
                     registry[meta.name] = obj
@@ -109,6 +112,8 @@ def list_modules() -> list[dict[str, Any]]:
                     "description": meta.description,
                     "phase": meta.phase.value,
                     "requires_auth": meta.requires_auth,
+                    "requires_browser": meta.requires_browser,
+                    "requires_proxy": meta.requires_proxy,
                     "enabled_by_default": meta.enabled_by_default,
                     "supported_targets": [t.value for t in meta.supported_targets],
                     "tags": meta.tags,

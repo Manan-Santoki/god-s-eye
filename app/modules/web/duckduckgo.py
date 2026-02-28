@@ -23,6 +23,7 @@ from app.core.constants import ModulePhase, TargetType
 from app.core.exceptions import APIError, RateLimitError
 from app.core.logging import get_logger
 from app.modules.base import BaseModule, ModuleMetadata, ModuleResult
+from app.utils.request_log import append_request_log
 
 logger = get_logger(__name__)
 
@@ -79,8 +80,8 @@ class DuckDuckGoModule(BaseModule):
         ) as session:
             # Run both endpoints concurrently
             import asyncio
-            api_task = self._fetch_instant_answer(session, target, errors)
-            html_task = self._fetch_html_results(session, target, errors, warnings)
+            api_task = self._fetch_instant_answer(session, target, context, errors)
+            html_task = self._fetch_html_results(session, target, context, errors, warnings)
 
             api_data, web_results = await asyncio.gather(
                 api_task, html_task, return_exceptions=True
@@ -133,6 +134,7 @@ class DuckDuckGoModule(BaseModule):
         self,
         session: aiohttp.ClientSession,
         query: str,
+        context: dict[str, Any],
         errors: list[str],
     ) -> dict[str, Any]:
         """
@@ -148,8 +150,24 @@ class DuckDuckGoModule(BaseModule):
         }
 
         logger.debug("ddg_instant_answer_fetch", query=query)
+        append_request_log(
+            context,
+            module="duckduckgo",
+            event="request",
+            endpoint=_DDG_API_URL,
+            query=query,
+            mode="instant_answer",
+        )
 
         async with session.get(_DDG_API_URL, params=params) as resp:
+            append_request_log(
+                context,
+                module="duckduckgo",
+                event="response",
+                query=query,
+                mode="instant_answer",
+                status=resp.status,
+            )
             if resp.status == 429:
                 raise RateLimitError("DuckDuckGo")
             if resp.status != 200:
@@ -194,6 +212,7 @@ class DuckDuckGoModule(BaseModule):
         self,
         session: aiohttp.ClientSession,
         query: str,
+        context: dict[str, Any],
         errors: list[str],
         warnings: list[str],
     ) -> list[dict[str, str]]:
@@ -205,8 +224,24 @@ class DuckDuckGoModule(BaseModule):
         params = {"q": query, "b": ""}
 
         logger.debug("ddg_html_fetch", query=query)
+        append_request_log(
+            context,
+            module="duckduckgo",
+            event="request",
+            endpoint=_DDG_HTML_URL,
+            query=query,
+            mode="html",
+        )
 
         async with session.post(_DDG_HTML_URL, data=params) as resp:
+            append_request_log(
+                context,
+                module="duckduckgo",
+                event="response",
+                query=query,
+                mode="html",
+                status=resp.status,
+            )
             if resp.status == 429:
                 warnings.append("DuckDuckGo HTML search rate-limited")
                 return []

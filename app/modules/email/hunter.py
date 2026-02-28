@@ -320,3 +320,6 @@ class HunterIOModule(BaseModule):
             "sources_count": len(sources),
             "first_seen": sources[0].get("extracted_on") if sources else None,
         }
+
+
+HunterModule = HunterIOModule

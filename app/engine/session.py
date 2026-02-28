@@ -17,6 +17,7 @@ from app.core.config import settings
 from app.core.constants import ScanStatus, TargetType
 from app.core.logging import get_logger
 from app.database.models import ScanMetadata
+from app.utils.request_log import append_request_log
 
 logger = get_logger(__name__)
 
@@ -53,11 +54,12 @@ class ScanSession:
         target: str,
         target_type: TargetType,
         target_inputs: dict[str, str] | None = None,
+        request_id: str | None = None,
     ) -> None:
         self.target = target
         self.target_type = target_type
         self.target_inputs = target_inputs or {}
-        self.request_id = generate_request_id(target)
+        self.request_id = request_id or generate_request_id(target)
         self.status = ScanStatus.PENDING
         self.started_at = datetime.now(timezone.utc)
         self.completed_at: datetime | None = None
@@ -82,19 +84,25 @@ class ScanSession:
             "module_results": {},
         }
 
-        # Output directories
-        self.base_dir = Path(settings.data_dir) / "requests" / self.request_id
-        self.raw_data_dir = self.base_dir / "raw_data"
-        self.images_dir = self.base_dir / "images"
-        self.screenshots_dir = self.base_dir / "screenshots"
-        self.correlation_dir = self.base_dir / "correlation"
-        self.reports_dir = self.base_dir / "reports"
+        self._refresh_paths()
 
         # Module tracking
         self.modules_executed: list[str] = []
         self.modules_failed: list[str] = []
         self.modules_skipped: list[str] = []
         self.total_findings: int = 0
+
+    def _refresh_paths(self) -> None:
+        """Recompute all filesystem paths after request_id/data_dir changes."""
+        self.base_dir = Path(settings.data_dir) / "requests" / self.request_id
+        self.raw_data_dir = self.base_dir / "raw_data"
+        self.images_dir = self.base_dir / "images"
+        self.screenshots_dir = self.base_dir / "screenshots"
+        self.correlation_dir = self.base_dir / "correlation"
+        self.reports_dir = self.base_dir / "reports"
+        self.request_log_path = self.base_dir / "request_log.log"
+        if hasattr(self, "context"):
+            self.context["request_log_path"] = str(self.request_log_path)
 
     def setup_directories(self) -> None:
         """Create all output directories."""
@@ -107,6 +115,7 @@ class ScanSession:
             self.reports_dir,
         ]:
             d.mkdir(parents=True, exist_ok=True)
+        self.request_log_path.touch(exist_ok=True)
         logger.info("session_dirs_created", request_id=self.request_id, path=str(self.base_dir))
 
     def save_metadata(self) -> None:
@@ -147,6 +156,15 @@ class ScanSession:
             target=self.target,
             target_type=self.target_type.value,
         )
+        append_request_log(
+            self.context,
+            module="scan",
+            event="started",
+            request_id=self.request_id,
+            target=self.target,
+            target_type=self.target_type.value,
+            target_inputs=self.target_inputs,
+        )
 
     def complete(self) -> None:
         """Mark session as completed."""
@@ -169,8 +187,9 @@ class ScanSession:
         self.save_metadata()
         logger.error("scan_failed", request_id=self.request_id, reason=reason)
 
-    def save_module_result(self, module_name: str, result: dict[str, Any]) -> None:
+    async def save_module_result(self, module_name: str, result: dict[str, Any]) -> None:
         """Save a module's raw output to raw_data/{module_name}.json."""
+        self.raw_data_dir.mkdir(parents=True, exist_ok=True)
         output_path = self.raw_data_dir / f"{module_name}.json"
         with open(output_path, "w") as f:
             json.dump(result, f, indent=2, default=str)
@@ -215,11 +234,29 @@ class ScanSession:
             target=data["target"],
             target_type=target_type,
             target_inputs=data.get("target_inputs", {}),
+            request_id=request_id,
         )
-        session.request_id = request_id
+        session._refresh_paths()
         session.status = ScanStatus(data.get("status", "pending"))
         session.modules_executed = data.get("modules_executed", [])
         session.modules_failed = data.get("modules_failed", [])
         session.modules_skipped = data.get("modules_skipped", [])
         session.total_findings = data.get("total_findings", 0)
+        if "started_at" in data and data["started_at"]:
+            session.started_at = datetime.fromisoformat(data["started_at"])
+        if "completed_at" in data and data["completed_at"]:
+            session.completed_at = datetime.fromisoformat(data["completed_at"])
+        for json_path in sorted(session.raw_data_dir.glob("*.json")):
+            try:
+                with open(json_path) as f:
+                    session.context["module_results"][json_path.stem] = json.load(f)
+            except Exception:
+                continue
+        session.context["request_id"] = request_id
+        session.context["target"] = session.target
+        session.context["target_type"] = session.target_type.value
+        session.context["target_inputs"] = session.target_inputs
+        session.context["request_log_path"] = str(session.request_log_path)
+        session.context["risk_score"] = data.get("risk_score")
+        session.context["risk_level"] = data.get("risk_level")
         return session

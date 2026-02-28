@@ -102,3 +102,7 @@ logs/
 *.temp
 .cache/
 .sass-cache/
+
+.env.backup
+
+.claude/

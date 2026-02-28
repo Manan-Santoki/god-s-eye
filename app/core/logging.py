@@ -73,11 +73,12 @@ def setup_logging(
         # Human-readable colored output for development
         renderer = structlog.dev.ConsoleRenderer(colors=True)
 
+    structlog.reset_defaults()
     structlog.configure(
         processors=shared_processors + [renderer],
         wrapper_class=structlog.make_filtering_bound_logger(level),
         context_class=dict,
-        logger_factory=structlog.PrintLoggerFactory(file=sys.stdout),
+        logger_factory=structlog.stdlib.LoggerFactory(),
         cache_logger_on_first_use=True,
     )
 
@@ -111,7 +112,7 @@ def get_logger(name: str) -> structlog.stdlib.BoundLogger:
         logger.info("scan_started", target="john@example.com", phase=1)
         logger.error("api_failed", api="hibp", status=429, retry_after=60)
     """
-    return structlog.get_logger(name)
+    return structlog.stdlib.get_logger(name)
 
 
 def get_audit_logger() -> structlog.stdlib.BoundLogger:
@@ -121,4 +122,4 @@ def get_audit_logger() -> structlog.stdlib.BoundLogger:
     All searches must be logged here for compliance/ethics requirements.
     This log is append-only and should never be cleared.
     """
-    return structlog.get_logger("god_eye.audit")
+    return structlog.stdlib.get_logger("god_eye.audit")

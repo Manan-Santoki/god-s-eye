@@ -193,3 +193,99 @@ class TestOrchestrator:
             orchestrator = Orchestrator()
             # Verify orchestrator initializes without errors
             assert orchestrator is not None
+
+    def test_merge_discovered_context_persists_search_artifacts(self, scan_session):
+        from app.engine.orchestrator import Orchestrator
+
+        orchestrator = Orchestrator()
+        orchestrator._merge_discovered_context(
+            scan_session,
+            {
+                "discovered_image_urls": [
+                    {"url": "https://media.licdn.com/profile.jpeg", "platform": "linkedin"},
+                    {"url": "https://avatars.githubusercontent.com/u/1?v=4", "platform": "github"},
+                ]
+            },
+        )
+
+        assert len(scan_session.context["discovered_image_urls"]) == 2
+
+    def test_select_modules_includes_username_modules_for_email_scan(self):
+        from app.engine.orchestrator import Orchestrator
+        from app.modules.base import BaseModule, ModuleMetadata
+
+        class MockUsernameModule(BaseModule):
+            def metadata(self):
+                return ModuleMetadata(
+                    name="mock_username",
+                    display_name="Mock Username",
+                    description="Mock",
+                    phase=1,
+                    supported_targets=[TargetType.USERNAME],
+                )
+
+        orchestrator = Orchestrator()
+        selected = orchestrator._select_modules(
+            registry={"mock_username": MockUsernameModule},
+            target="john.doe@example.com",
+            target_type=TargetType.EMAIL,
+            target_inputs={"email": "john.doe@example.com"},
+            module_filter=None,
+            active_phases=[1],
+        )
+
+        assert 1 in selected
+        assert selected[1][0].metadata().name == "mock_username"
+
+    def test_build_execution_context_prefers_username_for_github(self, scan_session):
+        from app.engine.orchestrator import Orchestrator
+        from app.modules.social.github_api import GitHubAPIModule
+
+        scan_session.target = "john.doe@example.com"
+        scan_session.target_type = TargetType.EMAIL
+        scan_session.target_inputs = {"email": "john.doe@example.com"}
+        scan_session.context["target_inputs"] = scan_session.target_inputs
+
+        orchestrator = Orchestrator()
+        target, target_type, context = orchestrator._build_execution_context(
+            scan_session,
+            GitHubAPIModule().metadata(),
+        )
+
+        assert target in {"john.doe", "john-doe", "john_doe", "johndoe"}
+        assert target_type == TargetType.USERNAME
+        assert context["module_execution_target"]["module"] == "github_api"
+
+    def test_extract_entities_discovers_social_handles_from_urls(self, scan_session):
+        from app.engine.orchestrator import Orchestrator
+
+        orchestrator = Orchestrator()
+        orchestrator._extract_entities(
+            scan_session,
+            "serpapi_search",
+            {
+                "results": [
+                    {"url": "https://www.instagram.com/john.doe/"},
+                    {"url": "https://github.com/johndoe/project"},
+                    {"url": "https://in.linkedin.com/in/john-doe"},
+                ]
+            },
+        )
+
+        assert "john.doe" in scan_session.context["discovered_usernames"]
+        assert "johndoe" in scan_session.context["discovered_usernames"]
+        assert "john-doe" in scan_session.context["discovered_usernames"]
+        assert scan_session.context["discovered_instagram_profiles"][0]["username"] == "john.doe"
+
+    def test_build_execution_plan_fans_out_registered_domains(self, scan_session):
+        from app.engine.orchestrator import Orchestrator
+        from app.modules.domain.dns_recon import DNSReconModule
+
+        scan_session.context["discovered_domains"] = ["msantoki.com", "manansantoki.xyz"]
+
+        orchestrator = Orchestrator()
+        plan = orchestrator._build_execution_plan(scan_session, DNSReconModule().metadata())
+
+        targets = [target for target, _, _ in plan]
+        assert "msantoki.com" in targets
+        assert "manansantoki.xyz" in targets

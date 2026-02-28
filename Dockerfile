@@ -71,6 +71,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy dependency files first (for Docker layer caching)
 COPY pyproject.toml ./
 COPY README.md ./
+COPY app ./app
 
 # Install Python dependencies into a virtual environment
 RUN python -m venv /opt/venv

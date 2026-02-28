@@ -28,7 +28,7 @@ logger = get_logger(__name__)
 
 def _score_to_level(score: float) -> str:
     """Map a numeric risk score to a RiskLevel string."""
-    if score <= 3.0:
+    if score <= 4.0:
         return RiskLevel.LOW.value
     elif score <= 6.0:
         return RiskLevel.MEDIUM.value
@@ -54,6 +54,25 @@ class RiskScorer:
         - public_social_per: +0.5 per confirmed public social profile
     """
 
+    def score_to_level(self, score: float) -> str:
+        """Backward-compatible helper used by older tests/code."""
+        return _score_to_level(score)
+
+    def compute(self, module_results: dict[str, Any]) -> tuple[float, str, list[str]]:
+        """Compute a score synchronously from in-memory module results."""
+        normalized = self._normalize_module_results(module_results)
+        breakdown: dict[str, float] = {}
+        raw_score, breakdown = self._score_breach_data(normalized, breakdown)
+        raw_score, breakdown = self._score_social_exposure(normalized, raw_score, breakdown)
+        raw_score, breakdown = self._score_personal_info(normalized, raw_score, breakdown)
+        raw_score, breakdown = self._score_image_risks(normalized, raw_score, breakdown)
+        raw_score, breakdown = self._score_domain_risks(normalized, raw_score, breakdown)
+        raw_score, breakdown = self._score_code_risks(normalized, raw_score, breakdown)
+        final_score = round(max(0.0, min(10.0, raw_score)), 2)
+        level = _score_to_level(final_score)
+        recommendations = self._default_recommendations(level, breakdown)
+        return final_score, level, recommendations
+
     async def run(self, session: ScanSession) -> RiskAssessment:
         """
         Execute risk scoring for a session.
@@ -69,7 +88,7 @@ class RiskScorer:
         """
         logger.info("risk_scoring_started", request_id=session.request_id)
 
-        module_results = self._load_module_results(session)
+        module_results = self._normalize_module_results(self._load_module_results(session))
 
         # ── Apply weights ──────────────────────────────────────────
         breakdown: dict[str, float] = {}
@@ -91,7 +110,7 @@ class RiskScorer:
 
         # ── LLM recommendations ───────────────────────────────────
         recommendations: list[str] = []
-        if settings.enable_ai_correlation and self._llm_available():
+        if self._ai_enabled(session) and self._llm_available():
             try:
                 recommendations = await self._generate_recommendations(
                     session.target, final_score, level, breakdown, top_risks
@@ -147,8 +166,9 @@ class RiskScorer:
                 breach_count += len(breaches)
 
             # Also check top-level breach_count field
-            if "breach_count" in data and isinstance(data["breach_count"], int):
-                breach_count = max(breach_count, data["breach_count"])
+            for count_key in ("breach_count", "total_breaches"):
+                if count_key in data and isinstance(data[count_key], int):
+                    breach_count = max(breach_count, data[count_key])
 
             # Check for exposed password / hash data
             for field in ("password", "plaintext", "exposed_password", "exposed_hash", "hash"):
@@ -419,6 +439,7 @@ class RiskScorer:
         return (
             settings.has_api_key("anthropic_api_key")
             or settings.has_api_key("openai_api_key")
+            or settings.has_api_key("openrouter_api_key")
             or bool(settings.ollama_endpoint)
         )
 
@@ -494,6 +515,35 @@ class RiskScorer:
                         logger.warning("risk_scorer_load_failed", file=str(json_path), error=str(exc))
 
         return results
+
+    def _normalize_module_results(self, module_results: dict[str, Any]) -> dict[str, Any]:
+        """Unwrap legacy {success, data} result envelopes into plain data dicts."""
+        normalized: dict[str, Any] = {}
+        envelope_keys = {
+            "success",
+            "data",
+            "errors",
+            "warnings",
+            "module_name",
+            "target",
+            "execution_time_ms",
+            "findings_count",
+            "error",
+        }
+        for module_name, data in module_results.items():
+            if (
+                isinstance(data, dict)
+                and "data" in data
+                and isinstance(data.get("data"), dict)
+                and (set(data.keys()) <= envelope_keys or any(key in data for key in ("success", "errors", "warnings")))
+            ):
+                normalized[module_name] = data["data"]
+            else:
+                normalized[module_name] = data
+        return normalized
+
+    def _ai_enabled(self, session: ScanSession) -> bool:
+        return bool(session.context.get("enable_ai_correlation", settings.enable_ai_correlation))
 
     def _save(self, session: ScanSession, assessment: RiskAssessment) -> None:
         """Save the risk assessment to correlation/risk_assessment.json."""

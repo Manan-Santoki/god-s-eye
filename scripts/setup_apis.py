@@ -122,20 +122,12 @@ APIS = [
         "section": "Search & Web Intelligence",
         "apis": [
             {
-                "name": "Google Custom Search Engine",
-                "env": "GOOGLE_CSE_API_KEY",
-                "url": "https://developers.google.com/custom-search/v1/introduction",
-                "description": "Google search results and dorking",
+                "name": "SerpApi",
+                "env": "SERPAPI_API_KEY",
+                "url": "https://serpapi.com/search-api",
+                "description": "Google search results and dorking via SerpApi",
                 "required": False,
-                "validate": lambda k: k.startswith("AIza") and len(k) >= 30,
-            },
-            {
-                "name": "Google CSE ID",
-                "env": "GOOGLE_CSE_ID",
-                "url": "https://programmablesearchengine.google.com",
-                "description": "Your Google Custom Search Engine ID",
-                "required": False,
-                "validate": lambda k: len(k) >= 10,
+                "validate": lambda k: len(k) >= 20,
             },
             {
                 "name": "Bing Search API",
@@ -259,13 +251,21 @@ APIS = [
         ],
     },
     {
-        "section": "AI Report Generation",
+        "section": "AI Report Generation & Vision Analysis",
         "apis": [
+            {
+                "name": "OpenRouter (Recommended)",
+                "env": "OPENROUTER_API_KEY",
+                "url": "https://openrouter.ai/keys",
+                "description": "Unified AI API — access Claude, GPT-4, Llama and 200+ models. Used for reports AND vision analysis of screenshots. Recommended over direct Anthropic/OpenAI keys.",
+                "required": False,
+                "validate": lambda k: k.startswith("sk-or-") and len(k) >= 20,
+            },
             {
                 "name": "Anthropic Claude API",
                 "env": "ANTHROPIC_API_KEY",
                 "url": "https://console.anthropic.com",
-                "description": "AI-powered OSINT analysis and report generation",
+                "description": "Direct Anthropic API (use OpenRouter instead if you have that key)",
                 "required": False,
                 "validate": lambda k: k.startswith("sk-ant-") and len(k) >= 40,
             },
@@ -273,7 +273,7 @@ APIS = [
                 "name": "OpenAI API",
                 "env": "OPENAI_API_KEY",
                 "url": "https://platform.openai.com/api-keys",
-                "description": "OpenAI GPT models for AI reports",
+                "description": "Direct OpenAI API (use OpenRouter instead if you have that key)",
                 "required": False,
                 "validate": lambda k: k.startswith("sk-") and len(k) >= 40,
             },

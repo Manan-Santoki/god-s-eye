@@ -68,6 +68,15 @@ Investigation Date: {date}
 Request ID: {request_id}
 Risk Score: {risk_score}/10
 
+Execution Summary:
+{execution_summary}
+
+Observed Search Activity:
+{search_activity}
+
+Image / Visual Activity:
+{image_activity}
+
 Data from {module_count} intelligence modules:
 {all_data}
 
@@ -82,7 +91,15 @@ Write a comprehensive report with these sections:
 8. Risk Assessment
 9. Recommendations
 
-Be factual, organized, and professional. Include only verified findings.
+Strict rules:
+- Include only verified findings from the provided module results and search activity.
+- Do not claim a platform was searched directly unless its direct module actually executed.
+- If a platform was checked only through Google/Bing/DuckDuckGo dorks, say that explicitly.
+- If a module did not run, failed, or was skipped, say "not searched" or omit it; do not write "not found".
+- If a search query returned zero results, phrase it as "no indexed results were found for this query/source".
+- Do not invent platform-by-platform tables unless the data clearly supports them.
+- Only include Visual Intelligence metrics when image modules ran or image results exist. If nothing was collected, state that no images were discovered/processed.
+- Avoid overstating certainty; distinguish between absence of evidence and evidence of absence.
 """
 
 TIMELINE_PROMPT = """

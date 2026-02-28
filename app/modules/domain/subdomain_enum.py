@@ -216,3 +216,6 @@ class SubdomainEnum(BaseModule):
         tasks = [verify(s) for s in subdomains if s != root_domain]
         batch = await asyncio.gather(*tasks)
         return list(batch)
+
+
+SubdomainEnumModule = SubdomainEnum

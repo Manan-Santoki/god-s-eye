@@ -21,7 +21,7 @@ import random
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import aiohttp
 
@@ -258,12 +258,20 @@ class ProxyRotator:
 
         return None
 
+    async def get_proxy(self) -> str | None:
+        """Backward-compatible alias for get_next_proxy()."""
+        return await self.get_next_proxy()
+
     def record_success(self, proxy_url: str, latency_ms: float = 0) -> None:
         """Record a successful request for a proxy."""
         for proxy in self._proxies:
             if proxy.url == proxy_url:
                 proxy.record_success(latency_ms)
                 return
+        proxy = self._parse_proxy_url(proxy_url)
+        if proxy:
+            proxy.record_success(latency_ms)
+            self._proxies.append(proxy)
 
     def record_failure(self, proxy_url: str) -> None:
         """Record a failed request for a proxy."""
@@ -271,6 +279,10 @@ class ProxyRotator:
             if proxy.url == proxy_url:
                 proxy.record_failure()
                 return
+        proxy = self._parse_proxy_url(proxy_url)
+        if proxy:
+            proxy.record_failure()
+            self._proxies.append(proxy)
 
     def get_stats(self) -> dict:
         """Return proxy rotation statistics."""
@@ -281,6 +293,23 @@ class ProxyRotator:
             "vpn_enabled": settings.vpn_enabled,
             "tor_enabled": settings.tor_enabled and self._tor_proxy is not None,
             "strategy": self._strategy,
+        }
+
+    def get_proxy_stats(self, proxy_url: str) -> dict[str, Any]:
+        """Return stats for a specific proxy, creating a placeholder if needed."""
+        proxy = next((p for p in self._proxies if p.url == proxy_url), None)
+        if proxy is None:
+            proxy = self._parse_proxy_url(proxy_url)
+            if proxy is None:
+                return {"success": 0, "failure": 0, "success_rate": 0.0}
+            self._proxies.append(proxy)
+        return {
+            "url": proxy_url,
+            "success": proxy.success_count,
+            "failure": proxy.failure_count,
+            "success_rate": proxy.success_rate,
+            "healthy": proxy.is_healthy,
+            "avg_latency_ms": proxy.avg_latency_ms,
         }
 
 

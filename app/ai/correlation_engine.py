@@ -188,6 +188,12 @@ class CorrelationEngine:
         7. Persist results to session.correlation_dir.
     """
 
+    def correlate(self, module_results: dict[str, Any]) -> list[dict[str, Any]]:
+        """Backward-compatible helper used by older tests/code."""
+        normalized = self._normalize_module_results(module_results)
+        entity_map = self._build_entity_map(normalized)
+        return self._find_connections(entity_map, normalized)
+
     async def run(self, session: ScanSession) -> dict[str, Any]:
         """
         Execute full correlation analysis on a completed (or in-progress) session.
@@ -201,7 +207,7 @@ class CorrelationEngine:
         logger.info("correlation_started", request_id=session.request_id)
 
         # ── 1. Load raw data files ─────────────────────────────────────
-        module_data: dict[str, Any] = self._load_raw_data(session)
+        module_data: dict[str, Any] = self._normalize_module_results(self._load_raw_data(session))
 
         if not module_data:
             logger.warning("correlation_no_data", request_id=session.request_id)
@@ -218,7 +224,7 @@ class CorrelationEngine:
 
         # ── 5. Optional LLM analysis ───────────────────────────────────
         llm_insights: dict[str, Any] = {}
-        if settings.enable_ai_correlation and self._llm_available():
+        if self._ai_enabled(session) and self._llm_available():
             try:
                 llm_insights = await self._run_llm_correlation(
                     session.target,
@@ -278,6 +284,35 @@ class CorrelationEngine:
                 module_data[name] = data
 
         return module_data
+
+    @staticmethod
+    def _normalize_module_results(module_results: dict[str, Any]) -> dict[str, Any]:
+        normalized: dict[str, Any] = {}
+        envelope_keys = {
+            "success",
+            "data",
+            "errors",
+            "warnings",
+            "module_name",
+            "target",
+            "execution_time_ms",
+            "findings_count",
+            "error",
+        }
+        for module_name, data in module_results.items():
+            if (
+                isinstance(data, dict)
+                and "data" in data
+                and isinstance(data.get("data"), dict)
+                and (set(data.keys()) <= envelope_keys or any(key in data for key in ("success", "errors", "warnings")))
+            ):
+                normalized[module_name] = data["data"]
+            else:
+                normalized[module_name] = data
+        return normalized
+
+    def _ai_enabled(self, session: ScanSession) -> bool:
+        return bool(session.context.get("enable_ai_correlation", settings.enable_ai_correlation))
 
     def _build_entity_map(
         self, module_data: dict[str, Any]
@@ -632,7 +667,10 @@ class CorrelationEngine:
         )
 
         if llm_insights.get("summary"):
-            narrative += " LLM analysis: " + llm_insights["summary"]
+            llm_summary = llm_insights["summary"]
+            if not isinstance(llm_summary, str):
+                llm_summary = json.dumps(llm_summary, default=str)[:500]
+            narrative += " LLM analysis: " + llm_summary
 
         return {
             "total_entities": len(entity_map),
@@ -649,6 +687,7 @@ class CorrelationEngine:
         return (
             settings.has_api_key("anthropic_api_key")
             or settings.has_api_key("openai_api_key")
+            or settings.has_api_key("openrouter_api_key")
             or bool(settings.ollama_endpoint)
         )
 

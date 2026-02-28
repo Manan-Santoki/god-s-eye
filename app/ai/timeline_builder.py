@@ -320,6 +320,24 @@ class TimelineBuilder:
     Optionally enriches events using an LLM for contextual descriptions.
     """
 
+    def build(self, module_results: dict[str, Any]) -> list[dict[str, Any]]:
+        """Backward-compatible helper used by older tests/code."""
+        normalized = self._normalize_module_results(module_results)
+        raw_events: list[dict[str, Any]] = []
+        for module_name, data in normalized.items():
+            if not data:
+                continue
+            raw_events.extend(_extract_account_creations(module_name, data))
+            raw_events.extend(_extract_breach_events(module_name, data))
+            raw_events.extend(_extract_exif_events(module_name, data))
+            raw_events.extend(_extract_domain_events(module_name, data))
+            raw_events.extend(_extract_post_events(module_name, data))
+        for event in raw_events:
+            event.setdefault("event", event.get("event_type", "event"))
+            event.setdefault("title", event.get("description", ""))
+        raw_events.sort(key=lambda ev: ev.get("timestamp", ""))
+        return raw_events
+
     async def run(self, session: ScanSession) -> list[TimelineEvent]:
         """
         Build and return the timeline for a session.
@@ -332,7 +350,7 @@ class TimelineBuilder:
         """
         logger.info("timeline_building_started", request_id=session.request_id)
 
-        module_results = self._load_module_results(session)
+        module_results = self._normalize_module_results(self._load_module_results(session))
 
         raw_events: list[dict[str, Any]] = []
 
@@ -355,7 +373,7 @@ class TimelineBuilder:
                 deduped.append(ev)
 
         # Optional LLM enrichment
-        if settings.enable_ai_correlation and self._llm_available() and deduped:
+        if self._ai_enabled(session) and self._llm_available() and deduped:
             try:
                 deduped = await self._enrich_with_llm(
                     session.target, deduped
@@ -415,10 +433,40 @@ class TimelineBuilder:
 
         return results
 
+    @staticmethod
+    def _normalize_module_results(module_results: dict[str, Any]) -> dict[str, Any]:
+        normalized: dict[str, Any] = {}
+        envelope_keys = {
+            "success",
+            "data",
+            "errors",
+            "warnings",
+            "module_name",
+            "target",
+            "execution_time_ms",
+            "findings_count",
+            "error",
+        }
+        for module_name, data in module_results.items():
+            if (
+                isinstance(data, dict)
+                and "data" in data
+                and isinstance(data.get("data"), dict)
+                and (set(data.keys()) <= envelope_keys or any(key in data for key in ("success", "errors", "warnings")))
+            ):
+                normalized[module_name] = data["data"]
+            else:
+                normalized[module_name] = data
+        return normalized
+
+    def _ai_enabled(self, session: ScanSession) -> bool:
+        return bool(session.context.get("enable_ai_correlation", settings.enable_ai_correlation))
+
     def _llm_available(self) -> bool:
         return (
             settings.has_api_key("anthropic_api_key")
             or settings.has_api_key("openai_api_key")
+            or settings.has_api_key("openrouter_api_key")
             or bool(settings.ollama_endpoint)
         )
 

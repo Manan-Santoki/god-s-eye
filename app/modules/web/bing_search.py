@@ -17,6 +17,7 @@ from app.core.constants import ModulePhase, TargetType
 from app.core.exceptions import APIError, RateLimitError
 from app.core.logging import get_logger
 from app.modules.base import BaseModule, ModuleMetadata, ModuleResult
+from app.utils.request_log import append_request_log
 
 logger = get_logger(__name__)
 
@@ -77,6 +78,7 @@ class BingSearchModule(BaseModule):
                 results = await self._fetch_results(
                     session=session,
                     query=target,
+                    context=context,
                 )
             except RateLimitError:
                 return ModuleResult.fail("Bing API rate limit exceeded (HTTP 429)")
@@ -109,6 +111,7 @@ class BingSearchModule(BaseModule):
         self,
         session: aiohttp.ClientSession,
         query: str,
+        context: dict[str, Any],
     ) -> list[dict[str, str]]:
         """
         Call the Bing Web Search API and return a list of result dicts.
@@ -128,8 +131,22 @@ class BingSearchModule(BaseModule):
         }
 
         logger.debug("bing_search_fetch", query=query)
+        append_request_log(
+            context,
+            module="bing_search",
+            event="request",
+            endpoint=_BING_SEARCH_URL,
+            query=query,
+        )
 
         async with session.get(_BING_SEARCH_URL, params=params) as resp:
+            append_request_log(
+                context,
+                module="bing_search",
+                event="response",
+                query=query,
+                status=resp.status,
+            )
             if resp.status == 429:
                 raise RateLimitError("BingSearch")
             if resp.status == 401:

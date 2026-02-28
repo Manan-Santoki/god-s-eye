@@ -26,6 +26,7 @@ from app.core.constants import ModulePhase, TargetType
 from app.core.exceptions import APIError, RateLimitError
 from app.core.logging import get_logger
 from app.modules.base import BaseModule, ModuleMetadata, ModuleResult
+from app.utils.request_log import append_request_log
 
 logger = get_logger(__name__)
 
@@ -62,6 +63,7 @@ class GitHubAPIModule(BaseModule):
     ) -> ModuleResult:
         # Strip leading @ if present
         username = target.lstrip("@")
+        search_queries = self._build_search_queries(target, target_type, context)
 
         token = self._get_secret(settings.github_token)
         headers: dict[str, str] = {
@@ -83,12 +85,25 @@ class GitHubAPIModule(BaseModule):
             headers=headers,
         ) as session:
             # Step 1: Fetch the profile (required — abort if not found)
+            resolved_via_search = False
+            resolution_query = None
             try:
                 profile = await self._fetch_profile(session, username)
             except APIError as exc:
                 if exc.status_code == 404:
-                    return ModuleResult.fail(f"GitHub user '{username}' not found")
-                return ModuleResult.fail(str(exc))
+                    resolved_username, profile, resolution_query = await self._resolve_username_via_search(
+                        session,
+                        target=username,
+                        queries=search_queries,
+                        context=context,
+                        errors=errors,
+                    )
+                    if not resolved_username or not profile:
+                        return ModuleResult.fail(f"GitHub user '{username}' not found")
+                    username = resolved_username
+                    resolved_via_search = True
+                else:
+                    return ModuleResult.fail(str(exc))
 
             # Step 2: Fetch repos, events, gists in parallel
             repos_task = self._fetch_repos(session, username, errors)
@@ -133,12 +148,16 @@ class GitHubAPIModule(BaseModule):
             repos=len(repos),  # type: ignore[arg-type]
             emails_found=len(commit_emails),
             gists=len(gists),  # type: ignore[arg-type]
+            resolved_via_search=resolved_via_search,
         )
 
         return ModuleResult(
             success=True,
             data={
                 "username": username,
+                "resolved_via_search": resolved_via_search,
+                "resolution_query": resolution_query,
+                "search_queries": search_queries,
                 "profile": profile,
                 "repos": repos,
                 "gists_count": len(gists),  # type: ignore[arg-type]
@@ -148,6 +167,51 @@ class GitHubAPIModule(BaseModule):
             errors=errors,
             warnings=warnings,
         )
+
+    async def _resolve_username_via_search(
+        self,
+        session: aiohttp.ClientSession,
+        *,
+        target: str,
+        queries: list[str],
+        context: dict[str, Any],
+        errors: list[str],
+    ) -> tuple[str | None, dict[str, Any] | None, str | None]:
+        """Use GitHub's user search API to resolve a likely profile when direct lookup misses."""
+        for query in queries:
+            append_request_log(
+                context,
+                module="github_api",
+                event="search_users",
+                query=query,
+            )
+            results = await self._search_users(session, query, errors)
+            if not results:
+                continue
+
+            candidate = self._pick_search_candidate(query, target, results)
+            if not candidate:
+                continue
+
+            username = str(candidate.get("login") or "").strip()
+            if not username:
+                continue
+
+            try:
+                profile = await self._fetch_profile(session, username)
+                append_request_log(
+                    context,
+                    module="github_api",
+                    event="search_candidate_selected",
+                    query=query,
+                    username=username,
+                    html_url=candidate.get("html_url"),
+                )
+                return username, profile, query
+            except APIError as exc:
+                errors.append(f"GitHub candidate '{username}' failed after search query '{query}': {exc}")
+
+        return None, None, None
 
     # ── API call methods ────────────────────────────────────────────────────
 
@@ -251,6 +315,37 @@ class GitHubAPIModule(BaseModule):
             )
 
         return repos
+
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=2, max=10),
+        retry=retry_if_exception_type(RateLimitError),
+        reraise=True,
+    )
+    async def _search_users(
+        self,
+        session: aiohttp.ClientSession,
+        query: str,
+        errors: list[str],
+    ) -> list[dict[str, Any]]:
+        """Search GitHub users by login/full-name-like query."""
+        url = f"{_GITHUB_API}/search/users"
+        params = {"q": query, "per_page": 10}
+
+        logger.debug("github_search_users", query=query)
+
+        async with session.get(url, params=params) as resp:
+            if resp.status == 429:
+                raise RateLimitError("GitHub")
+            if resp.status == 422:
+                return []
+            if resp.status != 200:
+                errors.append(f"User search failed for '{query}': HTTP {resp.status}")
+                return []
+
+            data = await resp.json()
+
+        return [item for item in data.get("items", []) if isinstance(item, dict)]
 
     @retry(
         stop=stop_after_attempt(3),
@@ -404,3 +499,82 @@ class GitHubAPIModule(BaseModule):
             "by_type": type_counts,
             "recent_repos": repos[:10],
         }
+
+    @staticmethod
+    def _build_search_queries(
+        target: str,
+        target_type: TargetType,
+        context: dict[str, Any],
+    ) -> list[str]:
+        """Build ordered GitHub user-search queries from scan context."""
+        candidates: list[str] = []
+        seen: set[str] = set()
+
+        def add(value: str | None) -> None:
+            if not value:
+                return
+            normalized = str(value).strip()
+            if not normalized or normalized in seen:
+                return
+            seen.add(normalized)
+            candidates.append(normalized)
+
+        inputs = context.get("target_inputs", {}) if isinstance(context, dict) else {}
+        if not isinstance(inputs, dict):
+            inputs = {}
+
+        add(inputs.get("username"))
+        add(inputs.get("name"))
+        for name in context.get("discovered_names", []) or []:
+            add(str(name))
+
+        email_value = str(inputs.get("email") or "").strip()
+        if target_type == TargetType.EMAIL and not email_value:
+            email_value = target.strip()
+        if email_value and "@" in email_value:
+            local_part = email_value.split("@", 1)[0]
+            add(local_part)
+            add(local_part.replace(".", "-"))
+            add(local_part.replace(".", " "))
+
+        if target_type in {TargetType.USERNAME, TargetType.PERSON}:
+            add(target.lstrip("@"))
+
+        for username in context.get("discovered_usernames", []) or []:
+            add(str(username))
+
+        return candidates
+
+    @staticmethod
+    def _pick_search_candidate(
+        query: str,
+        target: str,
+        results: list[dict[str, Any]],
+    ) -> dict[str, Any] | None:
+        """Rank GitHub user search results by login similarity to the target/query."""
+        if not results:
+            return None
+
+        query_norm = GitHubAPIModule._normalize_identifier(query)
+        target_norm = GitHubAPIModule._normalize_identifier(target)
+
+        def score(item: dict[str, Any]) -> tuple[int, float]:
+            login = str(item.get("login") or "")
+            login_norm = GitHubAPIModule._normalize_identifier(login)
+            ranking = 0
+            if login_norm == query_norm:
+                ranking += 100
+            if target_norm and login_norm == target_norm:
+                ranking += 80
+            if query_norm and query_norm in login_norm:
+                ranking += 40
+            if target_norm and target_norm in login_norm:
+                ranking += 30
+            ranking += max(0, 10 - int(item.get("score", 0) or 0))
+            return ranking, float(item.get("score", 0) or 0.0)
+
+        return sorted(results, key=score, reverse=True)[0]
+
+    @staticmethod
+    def _normalize_identifier(value: str) -> str:
+        return re.sub(r"[^a-z0-9]", "", value.lower())

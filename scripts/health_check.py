@@ -247,11 +247,12 @@ async def check_api_keys() -> list[dict]:
         "GITHUB_TOKEN": ("GitHub", False),
         "TWITTER_BEARER_TOKEN": ("Twitter/X", False),
         "SHODAN_API_KEY": ("Shodan", False),
-        "GOOGLE_CSE_API_KEY": ("Google CSE", False),
+        "SERPAPI_API_KEY": ("SerpApi", False),
         "ABUSEIPDB_API_KEY": ("AbuseIPDB", False),
         "VIRUSTOTAL_API_KEY": ("VirusTotal", False),
         "ANTHROPIC_API_KEY": ("Anthropic Claude", False),
         "OPENAI_API_KEY": ("OpenAI", False),
+        "OPENROUTER_API_KEY": ("OpenRouter", False),
         "DEHASHED_API_KEY": ("DeHashed", False),
         "INTELX_API_KEY": ("IntelX", False),
     }

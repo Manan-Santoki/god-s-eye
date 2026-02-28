@@ -127,6 +127,9 @@ def scan(
     ip: Optional[str] = typer.Option(None, "--ip", help="Target IP address"),
     company: Optional[str] = typer.Option(None, "--company", "-c", help="Target company name"),
     target: Optional[str] = typer.Option(None, "--target", "-t", help="Generic target (auto-detected type)"),
+    # Narrowing filters (improves precision for common names)
+    work: Optional[str] = typer.Option(None, "--work", "-w", help="Target's employer/workplace (narrows searches for common names, e.g. --work 'BlackRock')"),
+    location: Optional[str] = typer.Option(None, "--location", "-l", help="Target's city/country (narrows searches, e.g. --location 'Mumbai')"),
     # Scan options
     phases: Optional[str] = typer.Option(None, "--phases", help="Comma-separated phase numbers (e.g., 1,2,3)"),
     modules: Optional[str] = typer.Option(None, "--modules", "-m", help="Comma-separated module names"),
@@ -140,6 +143,7 @@ def scan(
     Examples:
       god_eye scan --email john@example.com
       god_eye scan --name "John Doe" --username johndoe --email john@example.com
+      god_eye scan --name "Roshni Joshi" --work "BlackRock" --location "Mumbai"
       god_eye scan --domain example.com --phases 1,3,6
     """
     from app.core.config import settings
@@ -187,6 +191,11 @@ def scan(
         target_inputs["company"] = company
         primary_target = primary_target or company
         primary_type = primary_type or TargetType.COMPANY
+    # Narrowing filters — injected into target_inputs for all modules
+    if work:
+        target_inputs["work"] = work
+    if location:
+        target_inputs["location"] = location
     if target:
         detected = detect_target_type(target)
         target_inputs[detected] = target
@@ -223,12 +232,6 @@ async def _async_scan(
 ) -> None:
     """Execute the scan asynchronously."""
     from app.engine.orchestrator import Orchestrator
-    from app.core.config import settings
-
-    # Override AI settings if disabled
-    if not enable_ai:
-        settings.enable_ai_correlation = False
-        settings.enable_ai_reports = False
 
     orchestrator = Orchestrator()
     session = await orchestrator.run_scan(
@@ -238,6 +241,8 @@ async def _async_scan(
         phases=phases,
         module_filter=module_list,
         show_progress=show_progress,
+        enable_ai_correlation=enable_ai,
+        enable_ai_reports=enable_ai,
     )
 
     # Display results summary
@@ -478,10 +483,10 @@ def setup() -> None:
     ask_key("GitHub Token (free)", "GITHUB_TOKEN", "https://github.com/settings/tokens")
     ask_key("HIBP API Key", "HIBP_API_KEY", "https://haveibeenpwned.com/API/Key")
     ask_key("Anthropic API Key (for AI reports)", "ANTHROPIC_API_KEY", "https://console.anthropic.com/")
+    ask_key("OpenRouter API Key (for AI reports)", "OPENROUTER_API_KEY", "https://openrouter.ai/keys")
 
     console.print("\n[bold]Search Engine APIs:[/bold]")
-    ask_key("Google CSE API Key", "GOOGLE_CSE_API_KEY")
-    ask_key("Google CSE Engine ID", "GOOGLE_CSE_ENGINE_ID")
+    ask_key("SerpApi Key", "SERPAPI_API_KEY", "https://serpapi.com/manage-api-key")
     ask_key("Shodan API Key", "SHODAN_API_KEY", "https://account.shodan.io/")
 
     console.print("\n[bold]Social Media APIs:[/bold]")
@@ -524,8 +529,8 @@ async def _async_report(request_id: str, format: str) -> None:
     try:
         from app.ai.report_generator import ReportGenerator
         generator = ReportGenerator()
-        summary = await generator.generate_executive_summary(session)
-        paths = await generator.generate_all(session)
+        selected_formats = None if format == "all" else [format]
+        paths = await generator.generate_all(session, formats=selected_formats)
         console.print(f"[green]✓ Report generated:[/green]")
         for fmt, path in paths.items():
             console.print(f"  {fmt}: [dim]{path}[/dim]")

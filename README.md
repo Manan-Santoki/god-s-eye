@@ -391,7 +391,7 @@ god_eye/
 │   │   ├── email/                # validator, breach_checker, hunter, permutator
 │   │   ├── username/             # social_checker, sherlock_wrapper, maigret_wrapper
 │   │   ├── phone/                # validator, lookup
-│   │   ├── web/                  # google_cse, duckduckgo, bing_search, wayback
+│   │   ├── web/                  # serpapi_search, duckduckgo, bing_search, wayback
 │   │   ├── social/               # github_api, twitter_api, reddit_api, youtube_api,
 │   │   │                         #   linkedin_scraper, instagram_scraper, facebook_scraper
 │   │   ├── domain/               # dns_recon, whois_lookup, certificate_search, subdomain_enum

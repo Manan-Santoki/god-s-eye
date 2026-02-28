@@ -66,6 +66,14 @@ class SQLiteCache:
             await self._db.close()
             self._db = None
 
+    async def initialize(self) -> None:
+        """Backward-compatible alias for connect()."""
+        await self.connect()
+
+    async def close(self) -> None:
+        """Backward-compatible alias for disconnect()."""
+        await self.disconnect()
+
     async def _create_schema(self) -> None:
         """Create all tables and indexes if they don't exist."""
         assert self._db is not None

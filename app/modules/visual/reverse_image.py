@@ -46,8 +46,9 @@ class ReverseImageSearch(BaseModule):
     async def run(self, target: str, target_type: TargetType, context: dict) -> ModuleResult:
         start = time.monotonic()
         images = context.get("discovered_images", [])
+        image_paths = self._collect_image_paths(images)
 
-        if not images:
+        if not image_paths:
             return ModuleResult(
                 module_name=self.metadata().name,
                 target=target,
@@ -56,17 +57,15 @@ class ReverseImageSearch(BaseModule):
             )
 
         # Use first 3 images for reverse search
-        search_images = images[:3]
+        search_images = image_paths[:3]
         all_results: list[dict] = []
 
         for img_path in search_images:
-            if not Path(img_path).exists():
-                continue
             try:
                 results = await asyncio.gather(
-                    self._google_reverse(img_path),
-                    self._yandex_reverse(img_path),
-                    self._tineye_api(img_path),
+                    self._google_reverse(str(img_path)),
+                    self._yandex_reverse(str(img_path)),
+                    self._tineye_api(str(img_path)),
                     return_exceptions=True,
                 )
                 for engine_name, result in zip(["google", "yandex", "tineye"], results):
@@ -89,6 +88,26 @@ class ReverseImageSearch(BaseModule):
             },
             execution_time_ms=elapsed,
         )
+
+    @staticmethod
+    def _collect_image_paths(raw_images: list[Any]) -> list[Path]:
+        """Resolve downloaded image entries into on-disk file paths."""
+        paths: list[Path] = []
+        for item in raw_images:
+            if isinstance(item, str):
+                path = Path(item)
+            elif isinstance(item, dict):
+                file_path = item.get("file_path") or item.get("path") or ""
+                path = Path(str(file_path)) if file_path else None  # type: ignore[assignment]
+            elif isinstance(item, Path):
+                path = item
+            else:
+                continue
+
+            if path and path.exists():
+                paths.append(path)
+
+        return paths
 
     async def _google_reverse(self, image_path: str) -> list[dict]:
         """Upload image to Google Images and parse results."""

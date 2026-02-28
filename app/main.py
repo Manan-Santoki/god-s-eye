@@ -10,12 +10,11 @@ Start: uvicorn app.main:app --host 0.0.0.0 --port 8000
 import asyncio
 import json
 from contextlib import asynccontextmanager
-from datetime import datetime
 from typing import Any, Optional
 
-from fastapi import BackgroundTasks, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from app.core.config import settings
@@ -25,7 +24,7 @@ from app.core.logging import get_logger, setup_logging
 logger = get_logger(__name__)
 
 # Track background scan tasks
-_running_scans: dict[str, asyncio.Task] = {}
+_running_scans: dict[str, asyncio.Task[None]] = {}
 _ws_connections: dict[str, list[WebSocket]] = {}
 
 
@@ -75,6 +74,9 @@ class ScanRequest(BaseModel):
     target: str
     target_type: str  # email | username | person | phone | domain | ip | company
     target_inputs: dict[str, str] = {}
+    # Narrowing filters for common-name disambiguation
+    work: Optional[str] = None      # Target's employer (e.g. "BlackRock")
+    location: Optional[str] = None  # Target's city/country (e.g. "Mumbai")
     phases: Optional[list[int]] = None
     modules: Optional[list[str]] = None
     enable_ai: bool = True
@@ -150,7 +152,6 @@ async def list_modules() -> list[dict[str, Any]]:
 @app.post("/scan", response_model=ScanResponse, tags=["Scanning"])
 async def start_scan(
     request: ScanRequest,
-    background_tasks: BackgroundTasks,
 ) -> ScanResponse:
     """
     Start an OSINT scan in the background.
@@ -166,23 +167,38 @@ async def start_scan(
             detail=f"Invalid target_type. Must be: {[t.value for t in TargetType]}",
         )
 
-    # Override AI if disabled
-    if not request.enable_ai:
-        settings.enable_ai_correlation = False
-        settings.enable_ai_reports = False
-
-    # Generate request_id before starting background task
     from app.engine.session import generate_request_id
-    request_id = generate_request_id(request.target)
 
-    background_tasks.add_task(
-        _run_scan_background,
-        request.target,
-        target_type,
-        request.target_inputs,
-        request.phases,
-        request.modules,
+    # Merge work/location into target_inputs so all modules can access them
+    enriched_inputs = dict(request.target_inputs)
+    if request.work:
+        enriched_inputs["work"] = request.work
+    if request.location:
+        enriched_inputs["location"] = request.location
+
+    request_id = generate_request_id(request.target)
+    task = asyncio.create_task(
+        _run_scan_background(
+            request.target,
+            target_type,
+            enriched_inputs,
+            request.phases,
+            request.modules,
+            request.enable_ai,
+            request_id,
+        ),
+        name=f"scan:{request_id}",
+    )
+    _running_scans[request_id] = task
+    await _publish_progress(
         request_id,
+        {
+            "status": "started",
+            "phase": 0,
+            "phase_name": "queued",
+            "completed_modules": 0,
+            "total_modules": 0,
+        },
     )
 
     return ScanResponse(
@@ -198,12 +214,16 @@ async def _run_scan_background(
     target_inputs: dict,
     phases: list | None,
     module_filter: list | None,
+    enable_ai: bool,
     request_id: str,
 ) -> None:
     """Execute scan in background and notify WebSocket subscribers."""
     try:
         from app.engine.orchestrator import Orchestrator
-        orchestrator = Orchestrator()
+
+        orchestrator = Orchestrator(
+            progress_callback=lambda payload: _publish_progress(request_id, payload)
+        )
         session = await orchestrator.run_scan(
             target=target,
             target_type=target_type,
@@ -211,10 +231,12 @@ async def _run_scan_background(
             phases=phases,
             module_filter=module_filter,
             show_progress=False,
+            request_id=request_id,
+            enable_ai_correlation=enable_ai,
+            enable_ai_reports=enable_ai,
         )
 
-        # Notify WebSocket subscribers
-        await _broadcast_progress(request_id, {
+        await _publish_progress(request_id, {
             "status": session.status.value,
             "findings": session.total_findings,
             "risk_score": session.context.get("risk_score"),
@@ -222,7 +244,7 @@ async def _run_scan_background(
 
     except Exception as e:
         logger.error("background_scan_failed", request_id=request_id, error=str(e))
-        await _broadcast_progress(request_id, {"status": "failed", "error": str(e)})
+        await _publish_progress(request_id, {"status": "failed", "error": str(e)})
     finally:
         _running_scans.pop(request_id, None)
 
@@ -327,6 +349,7 @@ async def cancel_scan(request_id: str) -> dict[str, str]:
     if not task:
         raise HTTPException(status_code=404, detail=f"No running scan: {request_id}")
     task.cancel()
+    await _publish_progress(request_id, {"status": "cancel_requested"})
     return {"message": f"Scan {request_id} cancelled"}
 
 
@@ -368,8 +391,16 @@ async def websocket_endpoint(websocket: WebSocket, request_id: str) -> None:
             _ws_connections[request_id].remove(websocket)
 
 
-async def _broadcast_progress(request_id: str, data: dict) -> None:
-    """Send progress update to all WebSocket subscribers."""
+async def _publish_progress(request_id: str, data: dict[str, Any]) -> None:
+    """Send progress updates to WebSocket clients and Redis."""
+    try:
+        from app.database.redis_client import get_redis
+
+        redis = await get_redis()
+        await redis.publish_progress(request_id, data)
+    except Exception:
+        pass
+
     ws_list = _ws_connections.get(request_id, [])
     dead = []
     for ws in ws_list:

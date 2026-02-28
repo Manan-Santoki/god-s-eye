@@ -13,6 +13,7 @@ Missing API keys cause partial results, not failures.
 from __future__ import annotations
 
 import asyncio
+import socket
 from typing import Any
 
 import aiohttp
@@ -71,14 +72,60 @@ class IPLookupModule(BaseModule):
         target_type: TargetType,
         context: dict[str, Any],
     ) -> ModuleResult:
-        ip = target.strip()
+        raw_target = target.strip()
+        if not raw_target or "/" in raw_target:
+            return ModuleResult.fail(f"'{raw_target}' does not look like a valid IP address")
 
+        if target_type == TargetType.DOMAIN:
+            resolved_ips = await self._resolve_domain_ips(raw_target)
+            if not resolved_ips:
+                return ModuleResult(
+                    success=True,
+                    data={
+                        "domain": raw_target,
+                        "resolved_ips": [],
+                        "lookups": [],
+                        "total_ips": 0,
+                        "discovered_ips": [],
+                    },
+                    warnings=[f"No IP addresses resolved for domain '{raw_target}'"],
+                )
+
+            lookups: list[dict[str, Any]] = []
+            errors: list[str] = []
+            warnings: list[str] = []
+            for ip in resolved_ips:
+                lookup = await self._lookup_ip(ip, errors, warnings)
+                if lookup.success:
+                    lookups.append(lookup.data)
+                else:
+                    errors.extend(lookup.errors)
+
+            return ModuleResult(
+                success=True,
+                data={
+                    "domain": raw_target,
+                    "resolved_ips": resolved_ips,
+                    "lookups": lookups,
+                    "total_ips": len(resolved_ips),
+                    "discovered_ips": resolved_ips,
+                },
+                errors=errors,
+                warnings=warnings,
+            )
+
+        ip = raw_target
+        return await self._lookup_ip(ip, [], [])
+
+    async def _lookup_ip(
+        self,
+        ip: str,
+        errors: list[str],
+        warnings: list[str],
+    ) -> ModuleResult:
         # Basic sanity check — not a full validator, just quick guard
         if not ip or "/" in ip:
             return ModuleResult.fail(f"'{ip}' does not look like a valid IP address")
-
-        errors: list[str] = []
-        warnings: list[str] = []
 
         ipinfo_token = self._get_secret(settings.ipinfo_token)
         abuseipdb_key = self._get_secret(settings.abuseipdb_api_key)
@@ -134,6 +181,22 @@ class IPLookupModule(BaseModule):
             errors=errors,
             warnings=warnings,
         )
+
+    async def _resolve_domain_ips(self, domain: str) -> list[str]:
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self._resolve_domain_ips_sync, domain)
+
+    @staticmethod
+    def _resolve_domain_ips_sync(domain: str) -> list[str]:
+        found: list[str] = []
+        try:
+            for family, _, _, _, sockaddr in socket.getaddrinfo(domain, None):
+                ip = sockaddr[0]
+                if ip not in found:
+                    found.append(ip)
+        except Exception:
+            return []
+        return found[:5]
 
     # ── IPinfo ──────────────────────────────────────────────────────────────
 

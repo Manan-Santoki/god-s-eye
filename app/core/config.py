@@ -11,6 +11,7 @@ Usage:
     print(module_config.get("modules", {}).get("email", {}).get("validator", {}).get("enabled"))
 """
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -69,11 +70,17 @@ class Settings(BaseSettings):
     intelx_api_key: SecretStr | None = None
 
     # ── Search Engines ────────────────────────────────────────
-    google_cse_api_key: SecretStr | None = None
-    google_cse_engine_id: str | None = None
+    serpapi_api_key: SecretStr | None = None
+    serpapi_key: SecretStr | None = None
+    serp_api_key: SecretStr | None = None
+    serpapi_base_url: str = "https://serpapi.com/search.json"
+    serpapi_location: str | None = None
     bing_api_key: SecretStr | None = None
     shodan_api_key: SecretStr | None = None
     virustotal_api_key: SecretStr | None = None
+    crawl4ai_base_url: str | None = None
+    crawl4ai_bearer_token: SecretStr | None = None
+    crawl4ai_timeout_seconds: int = 90
 
     # ── Social Media ──────────────────────────────────────────
     github_token: SecretStr | None = None
@@ -123,15 +130,22 @@ class Settings(BaseSettings):
     tor_password: SecretStr | None = None
 
     # ── AI ────────────────────────────────────────────────────
-    ai_provider: str = "anthropic"
+    ai_provider: str = "openrouter"
     anthropic_api_key: SecretStr | None = None
     openai_api_key: SecretStr | None = None
+    openrouter_api_key: SecretStr | None = None
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    openrouter_site_url: str | None = None
+    openrouter_app_name: str | None = "GOD_EYE"
+    openrouter_vision_model: str = "anthropic/claude-3-5-sonnet"
+    openrouter_report_model: str = "anthropic/claude-3-5-sonnet"
     ollama_endpoint: str = "http://localhost:11434"
     ollama_model: str = "llama3"
-    ai_model: str = "claude-sonnet-4-20250514"
+    ai_model: str = "anthropic/claude-3-5-sonnet"
     ai_max_tokens: int = 4000
     enable_ai_correlation: bool = True
     enable_ai_reports: bool = True
+    enable_ai_vision: bool = True
 
     @field_validator("log_level")
     @classmethod
@@ -144,7 +158,7 @@ class Settings(BaseSettings):
     @field_validator("ai_provider")
     @classmethod
     def validate_ai_provider(cls, v: str) -> str:
-        valid = {"anthropic", "openai", "ollama"}
+        valid = {"anthropic", "openai", "openrouter", "ollama"}
         if v.lower() not in valid:
             raise ValueError(f"ai_provider must be one of {valid}")
         return v.lower()
@@ -164,6 +178,23 @@ class Settings(BaseSettings):
             d.mkdir(parents=True, exist_ok=True)
         return self
 
+    @model_validator(mode="after")
+    def normalize_serpapi_settings(self) -> "Settings":
+        """Accept common SerpApi env aliases and normalize the base URL."""
+        primary = self._clean_secret(self.serpapi_api_key)
+        legacy = self._clean_secret(self.serpapi_key)
+        alias = self._clean_secret(self.serp_api_key)
+        resolved = primary or legacy or alias
+        object.__setattr__(self, "serpapi_api_key", resolved)
+        object.__setattr__(self, "serpapi_key", legacy)
+        object.__setattr__(self, "serp_api_key", alias)
+        object.__setattr__(
+            self,
+            "serpapi_base_url",
+            self._clean_env_string(self.serpapi_base_url) or "https://serpapi.com/search.json",
+        )
+        return self
+
     def get_proxy_url(self) -> str | None:
         """
         Return the active proxy URL for outbound requests.
@@ -176,6 +207,66 @@ class Settings(BaseSettings):
             # Individual proxy URLs are managed by ProxyRotator
             return None
         return None
+
+    def __getattribute__(self, name: str) -> Any:
+        """Allow environment variables to override loaded settings at runtime."""
+        value = super().__getattribute__(name)
+        if name.startswith("_"):
+            return value
+
+        cls = super().__getattribute__("__class__")
+        fields = getattr(cls, "model_fields", {})
+        if name not in fields:
+            return value
+
+        raw = os.getenv(name.upper())
+        if raw is None:
+            return value
+
+        if isinstance(value, SecretStr):
+            return SecretStr(raw)
+        if isinstance(value, bool):
+            return raw.strip().lower() in {"1", "true", "yes", "on"}
+        if isinstance(value, int):
+            try:
+                return int(raw)
+            except ValueError:
+                return value
+        if isinstance(value, Path):
+            return Path(raw)
+        if isinstance(value, str):
+            return raw
+
+        annotation = fields[name].annotation
+        annotation_text = str(annotation)
+        if "SecretStr" in annotation_text:
+            return SecretStr(raw)
+        if "bool" in annotation_text:
+            return raw.strip().lower() in {"1", "true", "yes", "on"}
+        if "int" in annotation_text:
+            try:
+                return int(raw)
+            except ValueError:
+                return value
+        if "Path" in annotation_text:
+            return Path(raw)
+        return raw
+
+    @staticmethod
+    def _clean_env_string(value: str | None) -> str | None:
+        """Normalize string settings loaded from .env placeholders."""
+        if value is None:
+            return None
+        cleaned = value.split("#", 1)[0].strip().strip('"').strip("'")
+        return cleaned or None
+
+    @classmethod
+    def _clean_secret(cls, value: SecretStr | None) -> SecretStr | None:
+        """Normalize secret settings loaded from .env placeholders."""
+        if value is None:
+            return None
+        cleaned = cls._clean_env_string(value.get_secret_value())
+        return SecretStr(cleaned) if cleaned else None
 
     def has_api_key(self, key_name: str) -> bool:
         """Check if a given API key is configured (not None/empty)."""

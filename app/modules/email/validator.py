@@ -106,12 +106,13 @@ class EmailValidatorModule(BaseModule):
         if not is_valid_format:
             logger.warning("email_invalid_format", target=target)
             elapsed = int((time.monotonic() - start) * 1000)
-            return ModuleResult.ok(
-                data={
-                    "is_valid_format": False,
-                    "has_mx_records": False,
-                    "mx_records": [],
-                    "has_spf": False,
+        return ModuleResult.ok(
+            data={
+                "email": target,
+                "is_valid_format": False,
+                "has_mx_records": False,
+                "mx_records": [],
+                "has_spf": False,
                     "spf_record": None,
                     "has_dmarc": False,
                     "dmarc_record": None,
@@ -154,6 +155,7 @@ class EmailValidatorModule(BaseModule):
 
         return ModuleResult.ok(
             data={
+                "email": target,
                 "is_valid_format": True,
                 "has_mx_records": has_mx,
                 "mx_records": mx_records,

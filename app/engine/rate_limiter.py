@@ -31,7 +31,14 @@ class TokenBucketLimiter:
     Thread-safe for asyncio (single event loop).
     """
 
-    def __init__(self, name: str, rate_rpm: int = 60, burst_size: int | None = None) -> None:
+    def __init__(
+        self,
+        name: str = "default",
+        rate_rpm: int = 60,
+        burst_size: int | None = None,
+        rate: int | None = None,
+        capacity: int | None = None,
+    ) -> None:
         """
         Initialize a rate limiter.
 
@@ -40,6 +47,11 @@ class TokenBucketLimiter:
             rate_rpm: Maximum requests per minute.
             burst_size: Maximum burst capacity (defaults to rate_rpm).
         """
+        if rate is not None:
+            rate_rpm = rate
+        if capacity is not None:
+            burst_size = capacity
+
         self.name = name
         self.rate_rpm = rate_rpm
         self.rate_per_second = rate_rpm / 60.0
@@ -142,6 +154,11 @@ class GlobalRateLimiter:
         if name not in self._limiters:
             self._limiters[name] = TokenBucketLimiter(name, rate_rpm=rate_rpm)
         return self._limiters[name]
+
+    @classmethod
+    def get(cls, name: str, rate_rpm: int = 60) -> TokenBucketLimiter:
+        """Backward-compatible singleton accessor used by older tests/code."""
+        return get_global_limiter().get_limiter(name, rate_rpm)
 
     async def acquire(self, name: str, rate_rpm: int = 60) -> None:
         """

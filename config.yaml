@@ -42,10 +42,17 @@ modules:
       enabled: true
 
   web:
-    google_cse:
+    serpapi_search:
       enabled: true
       max_results: 20
       pages: 2
+      image_query_limit: 2
+      image_results_per_query: 10
+      location:
+      google_domain: google.com
+      gl: us
+      hl: en
+      safe: off
     bing:
       enabled: true
       max_results: 20
@@ -55,12 +62,24 @@ modules:
     wayback:
       enabled: true
       max_snapshots: 10
+    crawl4ai:
+      enabled: true
+      base_url:
+      max_urls: 5
+      search_sources: [serpapi_search, duckduckgo, bing_search]
+    web_snapshot:
+      enabled: true
+      max_urls: 5
     google_dorker:
       enabled: true
       max_queries: 10
       dork_templates:
         - '"{target}" site:linkedin.com'
         - '"{target}" site:github.com'
+        - '"{target}" site:instagram.com'
+        - '"{target}" site:quora.com'
+        - '"{target}" site:reddit.com'
+        - '"{target}" site:youtube.com'
         - '"{target}" filetype:pdf'
         - '"{target}" inurl:resume OR inurl:cv'
         - '"{target}" site:pastebin.com'
@@ -102,6 +121,11 @@ modules:
       enabled: true
 
   domain:
+    permutator:
+      enabled: true
+      max_candidates: 1000
+      max_registered_domains_to_deep_scan: 25
+      tlds: [com, net, org, io, ai, app, dev, xyz, me, co, in, us, tech, site, online, info, cloud, sh, cc, ws]
     whois:
       enabled: true
     dns:

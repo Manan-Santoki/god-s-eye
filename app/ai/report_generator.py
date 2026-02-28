@@ -202,7 +202,8 @@ class ReportGenerator:
     Provider selection priority (configured via settings.ai_provider):
         1. anthropic — Claude API
         2. openai    — GPT-4 API
-        3. ollama    — Local Ollama server
+        3. openrouter — OpenRouter chat completions API
+        4. ollama    — Local Ollama server
     """
 
     # ── LLM Interface ──────────────────────────────────────────────────
@@ -220,6 +221,8 @@ class ReportGenerator:
             return await self._call_anthropic(prompt)
         elif provider == "openai":
             return await self._call_openai(prompt)
+        elif provider == "openrouter":
+            return await self._call_openrouter(prompt)
         elif provider == "ollama":
             return await self._call_ollama(prompt)
         else:
@@ -250,7 +253,32 @@ class ReportGenerator:
 
         client = AsyncOpenAI(api_key=settings.openai_api_key.get_secret_value())
         response = await client.chat.completions.create(
-            model="gpt-4-turbo",
+            model=settings.ai_model,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=settings.ai_max_tokens,
+        )
+        return response.choices[0].message.content or ""
+
+    async def _call_openrouter(self, prompt: str) -> str:
+        """Call OpenRouter using its OpenAI-compatible chat completions API."""
+        from openai import AsyncOpenAI
+
+        if not settings.openrouter_api_key:
+            raise RuntimeError("OpenRouter API key not configured")
+
+        headers: dict[str, str] = {}
+        if settings.openrouter_site_url:
+            headers["HTTP-Referer"] = settings.openrouter_site_url
+        if settings.openrouter_app_name:
+            headers["X-Title"] = settings.openrouter_app_name
+
+        client = AsyncOpenAI(
+            api_key=settings.openrouter_api_key.get_secret_value(),
+            base_url=settings.openrouter_base_url.rstrip("/"),
+            default_headers=headers or None,
+        )
+        response = await client.chat.completions.create(
+            model=settings.ai_model,
             messages=[{"role": "user", "content": prompt}],
             max_tokens=settings.ai_max_tokens,
         )
@@ -321,6 +349,9 @@ class ReportGenerator:
             request_id=session.request_id,
             risk_score=session.context.get("risk_score", 0.0),
             module_count=module_count,
+            execution_summary=self._build_execution_summary_text(session),
+            search_activity=self._build_search_activity_text(session),
+            image_activity=self._build_image_activity_text(session),
             all_data=all_data,
         )
 
@@ -341,7 +372,7 @@ class ReportGenerator:
         Returns the path to the written file.
         """
         session.reports_dir.mkdir(parents=True, exist_ok=True)
-        path = session.reports_dir / "report.md"
+        path = session.reports_dir / "full_report.md"
 
         header = (
             f"# GOD_EYE OSINT Report\n\n"
@@ -371,7 +402,7 @@ class ReportGenerator:
             raise RuntimeError("jinja2 is required for HTML export. Install it with: pip install jinja2") from exc
 
         session.reports_dir.mkdir(parents=True, exist_ok=True)
-        path = session.reports_dir / "report.html"
+        path = session.reports_dir / "full_report.html"
 
         # Load supporting data
         risk_assessment = self._load_json(session.correlation_dir / "risk_assessment.json")
@@ -426,7 +457,7 @@ class ReportGenerator:
             ) from exc
 
         session.reports_dir.mkdir(parents=True, exist_ok=True)
-        pdf_path = session.reports_dir / "report.pdf"
+        pdf_path = session.reports_dir / "full_report.pdf"
 
         try:
             wp = weasyprint.HTML(filename=str(html_path))
@@ -445,7 +476,7 @@ class ReportGenerator:
         Includes: metadata, module results, risk assessment, timeline, connections.
         """
         session.reports_dir.mkdir(parents=True, exist_ok=True)
-        path = session.reports_dir / "report.json"
+        path = session.reports_dir / "technical_data.json"
 
         bundle: dict[str, Any] = {
             "metadata": {
@@ -481,7 +512,7 @@ class ReportGenerator:
         Columns: module, finding_type, value, platform, confidence
         """
         session.reports_dir.mkdir(parents=True, exist_ok=True)
-        path = session.reports_dir / "report.csv"
+        path = session.reports_dir / "export.csv"
 
         rows: list[dict[str, Any]] = []
 
@@ -539,7 +570,11 @@ class ReportGenerator:
         logger.info("csv_exported", path=str(path), rows=len(rows))
         return path
 
-    async def generate_all(self, session: ScanSession) -> dict[str, Path]:
+    async def generate_all(
+        self,
+        session: ScanSession,
+        formats: list[str] | None = None,
+    ) -> dict[str, Path]:
         """
         Generate the full report and export in all supported formats.
 
@@ -554,10 +589,13 @@ class ReportGenerator:
         """
         results: dict[str, Path] = {}
         errors: dict[str, str] = {}
+        selected = set(formats or ["markdown", "html", "pdf", "json", "csv"])
+        if "all" in selected:
+            selected = {"markdown", "html", "pdf", "json", "csv"}
 
         # Generate LLM report text
         full_report_text = ""
-        if settings.enable_ai_reports and self._llm_available():
+        if self._reports_enabled(session) and self._llm_available():
             try:
                 full_report_text = await self.generate_full_report(session)
             except Exception as exc:
@@ -567,23 +605,26 @@ class ReportGenerator:
             full_report_text = self._fallback_full_report(session)
 
         # Markdown
-        try:
-            results["markdown"] = await self.export_markdown(session, full_report_text)
-        except Exception as exc:
-            errors["markdown"] = str(exc)
-            logger.error("export_markdown_failed", error=str(exc))
+        if "markdown" in selected:
+            try:
+                results["markdown"] = await self.export_markdown(session, full_report_text)
+            except Exception as exc:
+                errors["markdown"] = str(exc)
+                logger.error("export_markdown_failed", error=str(exc))
 
         # HTML
         html_path: Path | None = None
-        try:
-            html_path = await self.export_html(session, full_report_text)
-            results["html"] = html_path
-        except Exception as exc:
-            errors["html"] = str(exc)
-            logger.error("export_html_failed", error=str(exc))
+        if "html" in selected or "pdf" in selected:
+            try:
+                html_path = await self.export_html(session, full_report_text)
+                if "html" in selected:
+                    results["html"] = html_path
+            except Exception as exc:
+                errors["html"] = str(exc)
+                logger.error("export_html_failed", error=str(exc))
 
         # PDF
-        if html_path:
+        if html_path and "pdf" in selected:
             try:
                 results["pdf"] = await self.export_pdf(session, html_path)
             except ImportError:
@@ -593,18 +634,20 @@ class ReportGenerator:
                 logger.error("export_pdf_failed", error=str(exc))
 
         # JSON
-        try:
-            results["json"] = await self.export_json(session)
-        except Exception as exc:
-            errors["json"] = str(exc)
-            logger.error("export_json_failed", error=str(exc))
+        if "json" in selected:
+            try:
+                results["json"] = await self.export_json(session)
+            except Exception as exc:
+                errors["json"] = str(exc)
+                logger.error("export_json_failed", error=str(exc))
 
         # CSV
-        try:
-            results["csv"] = await self.export_csv(session)
-        except Exception as exc:
-            errors["csv"] = str(exc)
-            logger.error("export_csv_failed", error=str(exc))
+        if "csv" in selected:
+            try:
+                results["csv"] = await self.export_csv(session)
+            except Exception as exc:
+                errors["csv"] = str(exc)
+                logger.error("export_csv_failed", error=str(exc))
 
         if errors:
             logger.warning("generate_all_partial_errors", errors=errors)
@@ -616,6 +659,9 @@ class ReportGenerator:
         )
         return results
 
+    def _reports_enabled(self, session: ScanSession) -> bool:
+        return bool(session.context.get("enable_ai_reports", settings.enable_ai_reports))
+
     # ── Internal helpers ───────────────────────────────────────────────
 
     def _llm_available(self) -> bool:
@@ -623,6 +669,7 @@ class ReportGenerator:
         return (
             settings.has_api_key("anthropic_api_key")
             or settings.has_api_key("openai_api_key")
+            or settings.has_api_key("openrouter_api_key")
             or bool(settings.ollama_endpoint)
         )
 
@@ -668,6 +715,131 @@ class ReportGenerator:
             total += len(chunk)
 
         return "".join(lines)[:max_chars] or "No data available."
+
+    def _build_execution_summary_text(self, session: ScanSession) -> str:
+        """Summarize which modules actually ran, failed, or were skipped."""
+        lines = [
+            f"Executed modules ({len(session.modules_executed)}): {', '.join(session.modules_executed) or 'none'}",
+            f"Failed modules ({len(session.modules_failed)}): {', '.join(session.modules_failed) or 'none'}",
+            f"Skipped modules ({len(session.modules_skipped)}): {', '.join(session.modules_skipped) or 'none'}",
+            f"Target inputs: {json.dumps(session.target_inputs, default=str)}",
+        ]
+        return "\n".join(lines)
+
+    def _build_search_activity_text(self, session: ScanSession, max_lines: int = 30) -> str:
+        """Summarize actual search module activity for the report prompt."""
+        results = self._load_all_module_results(session)
+        lines: list[str] = []
+
+        serpapi = results.get("serpapi_search")
+        if isinstance(serpapi, dict):
+            query_reports = serpapi.get("query_reports", [])
+            if isinstance(query_reports, list) and query_reports:
+                for report in query_reports[:12]:
+                    if not isinstance(report, dict):
+                        continue
+                    lines.append(
+                        "serpapi_search "
+                        f"type={report.get('query_type', 'unknown')} "
+                        f"query={report.get('query', '')!r} "
+                        f"results_returned={report.get('results_returned', 0)} "
+                        f"reported_total_results={report.get('reported_total_results', 0)}"
+                    )
+                inline_images = serpapi.get("inline_images", [])
+                if isinstance(inline_images, list):
+                    lines.append(
+                        f"serpapi_search inline_images={len(inline_images)}"
+                    )
+            else:
+                lines.append(
+                    f"serpapi_search ran with total_results={serpapi.get('total_results', 0)}"
+                )
+
+        duckduckgo = results.get("duckduckgo")
+        if isinstance(duckduckgo, dict):
+            lines.append(
+                "duckduckgo "
+                f"web_results={len(duckduckgo.get('web_results', []) or [])} "
+                f"related_topics={len(duckduckgo.get('related_topics', []) or [])}"
+            )
+
+        bing = results.get("bing_search")
+        if isinstance(bing, dict):
+            lines.append(
+                f"bing_search total_results={bing.get('total_results', len(bing.get('results', []) or []))}"
+            )
+
+        paste_monitor = results.get("paste_monitor")
+        if isinstance(paste_monitor, dict):
+            lines.append(
+                f"paste_monitor total_found={paste_monitor.get('total_found', 0)}"
+            )
+
+        wayback = results.get("wayback")
+        if isinstance(wayback, dict):
+            lines.append(
+                "wayback "
+                f"has_archives={wayback.get('has_archives', False)} "
+                f"total_snapshots={wayback.get('total_snapshots', 0)}"
+            )
+
+        if session.request_log_path.exists():
+            try:
+                tail = session.request_log_path.read_text(encoding="utf-8").splitlines()[-10:]
+                if tail:
+                    lines.append("request_log_tail:")
+                    lines.extend(tail)
+            except Exception:
+                pass
+
+        if not lines:
+            return "No search activity data available."
+        return "\n".join(lines[:max_lines])
+
+    def _build_image_activity_text(self, session: ScanSession) -> str:
+        """Summarize image-processing execution and findings."""
+        results = self._load_all_module_results(session)
+        downloader = results.get("image_downloader")
+        exif = results.get("exif_extractor")
+        face = results.get("face_recognition")
+        reverse = results.get("reverse_image_search")
+
+        lines: list[str] = []
+        if isinstance(downloader, dict):
+            lines.append(
+                "image_downloader "
+                f"downloaded={downloader.get('downloaded_count', downloader.get('images_downloaded', 0))} "
+                f"duplicates_skipped={downloader.get('duplicates_skipped', 0)}"
+            )
+        if isinstance(exif, dict):
+            lines.append(
+                "exif_extractor "
+                f"processed={exif.get('images_processed', 0)} "
+                f"gps_hits={exif.get('gps_count', exif.get('images_with_gps', 0))}"
+            )
+        if isinstance(face, dict):
+            lines.append(
+                f"face_recognition matches={face.get('match_count', 0)}"
+            )
+        if isinstance(reverse, dict):
+            lines.append(
+                f"reverse_image_search matches={reverse.get('match_count', 0)}"
+            )
+
+        if not lines:
+            executed_image_modules = [
+                name
+                for name in session.modules_executed
+                if name in {"image_downloader", "exif_extractor", "face_recognition", "reverse_image_search"}
+            ]
+            if executed_image_modules:
+                return (
+                    "Image modules executed but produced no image evidence: "
+                    + ", ".join(executed_image_modules)
+                )
+            return "No image modules executed and no image evidence collected."
+
+        return "\n".join(lines)
 
     def _load_all_module_results(self, session: ScanSession) -> dict[str, Any]:
         """Load all module results from context and disk."""

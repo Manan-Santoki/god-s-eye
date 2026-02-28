@@ -42,7 +42,7 @@ from playwright.async_api import (
     async_playwright,
 )
 
-from app.core.config import settings
+from app.core.config import module_config, settings
 from app.core.exceptions import BrowserError
 from app.core.logging import get_logger
 
@@ -128,6 +128,7 @@ class BrowserFactory:
         self._playwright: Playwright | None = None
         self._browser: Browser | None = None
         self._contexts: dict[str, BrowserContext] = {}
+        self._context_meta: dict[int, dict[str, str | None]] = {}
         self._semaphore = asyncio.Semaphore(settings.max_concurrent_browsers)
         self._sessions_dir = Path(settings.data_dir) / "sessions"
         self._sessions_dir.mkdir(parents=True, exist_ok=True)
@@ -143,12 +144,12 @@ class BrowserFactory:
 
     async def _start(self) -> None:
         """Launch Playwright and browser."""
+        if self._browser is not None and self._playwright is not None:
+            return
         try:
             self._playwright = await async_playwright().start()
             self._browser = await self._playwright.chromium.launch(
-                headless=settings.module_config.get("stealth", {}).get("headless", True)
-                if hasattr(settings, "module_config")
-                else True,
+                headless=module_config.get("stealth", {}).get("headless", True),
                 args=[
                     "--no-sandbox",
                     "--disable-setuid-sandbox",
@@ -167,6 +168,10 @@ class BrowserFactory:
             logger.info("browser_started", type="chromium")
         except Exception as e:
             raise BrowserError("BrowserFactory", f"Failed to start browser: {e}") from e
+
+    async def _ensure_started(self) -> None:
+        if self._browser is None or self._playwright is None:
+            await self._start()
 
     async def new_page(
         self,
@@ -188,6 +193,7 @@ class BrowserFactory:
         Returns:
             A Playwright Page with all stealth scripts injected.
         """
+        await self._ensure_started()
         assert self._browser is not None
 
         # Select a random User-Agent
@@ -229,28 +235,31 @@ class BrowserFactory:
 
         # Create isolated context
         context_key = persist_session or f"ctx_{id(context_options)}"
+        if persist_session and context_key in self._contexts:
+            await self._close_context(self._contexts[context_key], save_session=True)
         async with self._semaphore:
             context = await self._browser.new_context(**context_options)
+            self._context_meta[id(context)] = {
+                "context_key": context_key,
+                "platform": persist_session,
+                "session_file": str(session_file) if session_file else None,
+            }
 
             # Inject stealth script into every page
             await context.add_init_script(STEALTH_SCRIPT)
 
-            # Block unnecessary resources (tracking, ads) for speed
-            await context.route(
-                "**/*.{png,jpg,jpeg,gif,svg,ico,woff,woff2,ttf,mp4,webm}",
-                lambda route: route.abort()
-                if route.request.resource_type in ("image", "media", "font")
-                and not route.request.url.endswith((".jpg", ".jpeg", ".png"))
-                else route.continue_(),
-            )
+            # For auth sessions (LinkedIn, Instagram, Facebook) allow ALL resources so
+            # login pages render correctly (CAPTCHA images, tracking pixels, etc.)
+            # For anonymous browsing, block heavy media to speed up scraping.
+            if not persist_session:
+                await context.route(
+                    "**/*.{gif,woff,woff2,ttf,mp4,webm,otf}",
+                    lambda route: route.abort()
+                    if route.request.resource_type in ("media", "font")
+                    else route.continue_(),
+                )
 
             page = await context.new_page()
-
-            # Save session on page close if persist_session is set
-            if persist_session and session_file:
-                page.on("close", lambda: asyncio.create_task(
-                    self._save_session(context, str(session_file), persist_session)
-                ))
 
             self._contexts[context_key] = context
             logger.debug("page_created", ua=ua[:50], proxy=bool(proxy), session=persist_session)
@@ -265,6 +274,37 @@ class BrowserFactory:
             logger.info("session_saved", platform=platform)
         except Exception as e:
             logger.warning("session_save_failed", platform=platform, error=str(e))
+
+    async def close_page(self, page: Page, save_session: bool = True) -> None:
+        """Close a page and its isolated context, persisting session state first."""
+        context = page.context
+        if save_session:
+            await self._persist_context_session(context)
+        try:
+            if not page.is_closed():
+                await page.close()
+        except Exception:
+            pass
+        await self._close_context(context, save_session=False)
+
+    async def _persist_context_session(self, context: BrowserContext) -> None:
+        meta = self._context_meta.get(id(context), {})
+        session_file = meta.get("session_file")
+        platform = meta.get("platform")
+        if session_file and platform:
+            await self._save_session(context, str(session_file), str(platform))
+
+    async def _close_context(self, context: BrowserContext, save_session: bool = True) -> None:
+        if save_session:
+            await self._persist_context_session(context)
+        meta = self._context_meta.pop(id(context), {})
+        context_key = meta.get("context_key")
+        if context_key and self._contexts.get(str(context_key)) is context:
+            self._contexts.pop(str(context_key), None)
+        try:
+            await context.close()
+        except Exception:
+            pass
 
     async def clear_session(self, platform: str) -> None:
         """Delete saved session state for a platform."""
@@ -336,11 +376,8 @@ class BrowserFactory:
 
     async def close(self) -> None:
         """Close all contexts and the browser."""
-        for context in self._contexts.values():
-            try:
-                await context.close()
-            except Exception:
-                pass
+        for context in list(self._contexts.values()):
+            await self._close_context(context, save_session=True)
         if self._browser:
             await self._browser.close()
         if self._playwright:

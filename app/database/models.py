@@ -14,6 +14,8 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
+from app import __version__
+
 # ── Base ──────────────────────────────────────────────────────────
 
 
@@ -236,7 +238,7 @@ class ScanMetadata(BaseModel):
     risk_score: float | None = None
     risk_level: str | None = None
     execution_time_seconds: int = 0
-    version: str = "1.0.0"
+    version: str = __version__
 
 
 # ── Risk Assessment ───────────────────────────────────────────────

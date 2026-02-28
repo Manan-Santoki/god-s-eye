@@ -1,6 +1,6 @@
 [project]
 name = "god_eye"
-version = "1.0.0"
+version = "1.0.1"
 description = "GOD_EYE — Open Source OSINT Intelligence Platform for digital footprint analysis and privacy auditing"
 readme = "README.md"
 license = { file = "LICENSE" }

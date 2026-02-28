@@ -17,6 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
+from app import __version__
 from app.core.config import settings
 from app.core.constants import TargetType
 from app.core.logging import get_logger, setup_logging
@@ -32,7 +33,7 @@ _ws_connections: dict[str, list[WebSocket]] = {}
 async def lifespan(app: FastAPI):
     """Startup and shutdown lifecycle."""
     setup_logging(settings.log_level, settings.log_format, settings.data_dir / "logs")
-    logger.info("god_eye_api_starting", version="1.0.0")
+    logger.info("god_eye_api_starting", version=__version__)
 
     # Initialize database connections
     try:
@@ -54,7 +55,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="GOD_EYE OSINT API",
     description="Open Source Intelligence Platform REST API",
-    version="1.0.0",
+    version=__version__,
     lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc",
@@ -94,7 +95,7 @@ class HealthResponse(BaseModel):
     status: str
     services: dict[str, bool]
     modules_count: int
-    version: str = "1.0.0"
+    version: str = __version__
 
 
 # ── Endpoints ────────────────────────────────────────────────────
@@ -436,7 +437,7 @@ async def _publish_progress(request_id: str, data: dict[str, Any]) -> None:
 async def root() -> dict[str, str]:
     return {
         "name": "GOD_EYE OSINT API",
-        "version": "1.0.0",
+        "version": __version__,
         "docs": "/docs",
         "health": "/health",
     }

@@ -17,6 +17,7 @@ import abc
 import inspect
 from typing import Any
 
+from app import __version__
 from app.core.constants import ModulePhase, TargetType
 from app.core.logging import get_logger
 
@@ -50,7 +51,7 @@ class ModuleMetadata:
         priority: int = 1,
         enabled_by_default: bool = True,
         author: str = "GOD_EYE",
-        version: str = "1.0.0",
+        version: str = __version__,
         tags: list[str] | None = None,
     ) -> None:
         self.name = name

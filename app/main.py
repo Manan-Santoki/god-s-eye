@@ -10,7 +10,7 @@ Start: uvicorn app.main:app --host 0.0.0.0 --port 8000
 import asyncio
 import json
 from contextlib import asynccontextmanager
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -37,6 +37,7 @@ async def lifespan(app: FastAPI):
     # Initialize database connections
     try:
         from app.database.sqlite_cache import get_cache
+
         await get_cache()
         logger.info("sqlite_ready")
     except Exception as e:
@@ -70,15 +71,16 @@ app.add_middleware(
 
 # ── Request/Response Models ──────────────────────────────────────
 
+
 class ScanRequest(BaseModel):
     target: str
     target_type: str  # email | username | person | phone | domain | ip | company
     target_inputs: dict[str, str] = {}
     # Narrowing filters for common-name disambiguation
-    work: Optional[str] = None      # Target's employer (e.g. "BlackRock")
-    location: Optional[str] = None  # Target's city/country (e.g. "Mumbai")
-    phases: Optional[list[int]] = None
-    modules: Optional[list[str]] = None
+    work: str | None = None  # Target's employer (e.g. "BlackRock")
+    location: str | None = None  # Target's city/country (e.g. "Mumbai")
+    phases: list[int] | None = None
+    modules: list[str] | None = None
     enable_ai: bool = True
 
 
@@ -97,6 +99,7 @@ class HealthResponse(BaseModel):
 
 # ── Endpoints ────────────────────────────────────────────────────
 
+
 @app.get("/health", response_model=HealthResponse, tags=["System"])
 async def health_check() -> HealthResponse:
     """Check health of all GOD_EYE services."""
@@ -105,6 +108,7 @@ async def health_check() -> HealthResponse:
     # Neo4j
     try:
         from app.database.neo4j_client import Neo4jClient
+
         client = Neo4jClient()
         await client.connect()
         services["neo4j"] = await client.health_check()
@@ -115,6 +119,7 @@ async def health_check() -> HealthResponse:
     # Redis
     try:
         from app.database.redis_client import RedisClient
+
         redis = RedisClient()
         await redis.connect()
         services["redis"] = await redis.health_check()
@@ -126,6 +131,7 @@ async def health_check() -> HealthResponse:
     modules_count = 0
     try:
         from app.modules import get_registry
+
         modules_count = len(get_registry())
         services["modules"] = modules_count > 0
     except Exception:
@@ -144,6 +150,7 @@ async def list_modules() -> list[dict[str, Any]]:
     """List all registered intelligence modules."""
     try:
         from app.modules import list_modules as _list_modules
+
         return _list_modules()
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -236,11 +243,14 @@ async def _run_scan_background(
             enable_ai_reports=enable_ai,
         )
 
-        await _publish_progress(request_id, {
-            "status": session.status.value,
-            "findings": session.total_findings,
-            "risk_score": session.context.get("risk_score"),
-        })
+        await _publish_progress(
+            request_id,
+            {
+                "status": session.status.value,
+                "findings": session.total_findings,
+                "risk_score": session.context.get("risk_score"),
+            },
+        )
 
     except Exception as e:
         logger.error("background_scan_failed", request_id=request_id, error=str(e))
@@ -252,8 +262,9 @@ async def _run_scan_background(
 @app.get("/scan/{request_id}", tags=["Scanning"])
 async def get_scan_status(request_id: str) -> dict[str, Any]:
     """Get scan status and metadata."""
-    from app.core.config import settings
     from pathlib import Path
+
+    from app.core.config import settings
 
     meta_file = Path(settings.data_dir) / "requests" / request_id / "metadata.json"
     if not meta_file.exists():
@@ -266,8 +277,9 @@ async def get_scan_status(request_id: str) -> dict[str, Any]:
 @app.get("/scan/{request_id}/results", tags=["Scanning"])
 async def get_scan_results(request_id: str) -> dict[str, Any]:
     """Get full scan results including all module outputs."""
-    from app.core.config import settings
     from pathlib import Path
+
+    from app.core.config import settings
 
     scan_dir = Path(settings.data_dir) / "requests" / request_id
     if not scan_dir.exists():
@@ -294,8 +306,9 @@ async def get_scan_results(request_id: str) -> dict[str, Any]:
 @app.get("/scan/{request_id}/report", tags=["Scanning"])
 async def get_scan_report(request_id: str, format: str = "html") -> Any:
     """Download a generated report in the specified format."""
-    from app.core.config import settings
     from pathlib import Path
+
+    from app.core.config import settings
 
     reports_dir = Path(settings.data_dir) / "requests" / request_id / "reports"
     file_map = {
@@ -322,8 +335,9 @@ async def get_scan_report(request_id: str, format: str = "html") -> Any:
 async def delete_scan(request_id: str) -> dict[str, str]:
     """Delete all data for a scan."""
     import shutil
-    from app.core.config import settings
     from pathlib import Path
+
+    from app.core.config import settings
 
     scan_dir = Path(settings.data_dir) / "requests" / request_id
     if not scan_dir.exists():
@@ -335,9 +349,10 @@ async def delete_scan(request_id: str) -> dict[str, str]:
 
 
 @app.get("/scans", tags=["Scanning"])
-async def list_scans(limit: int = 20, status: Optional[str] = None) -> list[dict]:
+async def list_scans(limit: int = 20, status: str | None = None) -> list[dict]:
     """List all scans with optional status filter."""
     from app.database.sqlite_cache import get_cache
+
     cache = await get_cache()
     return await cache.list_scans(limit=limit, status=status)
 
@@ -355,6 +370,7 @@ async def cancel_scan(request_id: str) -> dict[str, str]:
 
 # ── WebSocket ────────────────────────────────────────────────────
 
+
 @app.websocket("/ws/{request_id}")
 async def websocket_endpoint(websocket: WebSocket, request_id: str) -> None:
     """
@@ -370,6 +386,7 @@ async def websocket_endpoint(websocket: WebSocket, request_id: str) -> None:
     try:
         # Send current status if scan exists
         from app.database.redis_client import get_redis
+
         try:
             redis = await get_redis()
             progress = await redis.get_scan_progress(request_id)
@@ -382,7 +399,7 @@ async def websocket_endpoint(websocket: WebSocket, request_id: str) -> None:
         while True:
             try:
                 await asyncio.wait_for(websocket.receive_text(), timeout=30)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 await websocket.send_json({"ping": True})
     except WebSocketDisconnect:
         pass
@@ -413,6 +430,7 @@ async def _publish_progress(request_id: str, data: dict[str, Any]) -> None:
 
 
 # ── Root ─────────────────────────────────────────────────────────
+
 
 @app.get("/", tags=["System"])
 async def root() -> dict[str, str]:

@@ -185,7 +185,7 @@ class WhoisLookupModule(BaseModule):
         registrant = record.get("registrant") or {}
         admin = record.get("administrativeContact") or {}
         tech = record.get("technicalContact") or {}
-        audit = record.get("audit") or {}
+        record.get("audit") or {}
         registry_data = record.get("registryData") or {}
 
         # Normalise nameservers
@@ -208,20 +208,12 @@ class WhoisLookupModule(BaseModule):
         return {
             "registrar": record.get("registrarName") or "",
             "registration_date": (
-                record.get("createdDate")
-                or registry_data.get("createdDate")
-                or ""
+                record.get("createdDate") or registry_data.get("createdDate") or ""
             ),
             "expiration_date": (
-                record.get("expiresDate")
-                or registry_data.get("expiresDate")
-                or ""
+                record.get("expiresDate") or registry_data.get("expiresDate") or ""
             ),
-            "updated_date": (
-                record.get("updatedDate")
-                or registry_data.get("updatedDate")
-                or ""
-            ),
+            "updated_date": (record.get("updatedDate") or registry_data.get("updatedDate") or ""),
             "registrant_name": registrant.get("name") or "",
             "registrant_org": registrant.get("organization") or "",
             "registrant_email": registrant.get("email") or "",
@@ -249,9 +241,7 @@ class WhoisLookupModule(BaseModule):
         """
         loop = asyncio.get_event_loop()
         try:
-            result = await loop.run_in_executor(
-                None, self._run_local_whois, domain
-            )
+            result = await loop.run_in_executor(None, self._run_local_whois, domain)
             return result
         except Exception as exc:
             errors.append(f"Local WHOIS failed: {exc}")
@@ -266,9 +256,7 @@ class WhoisLookupModule(BaseModule):
         try:
             import whois  # type: ignore[import-untyped]
         except ImportError:
-            raise RuntimeError(
-                "python-whois is not installed. Run: pip install python-whois"
-            )
+            raise RuntimeError("python-whois is not installed. Run: pip install python-whois")
 
         logger.debug("local_whois_query", domain=domain)
 
@@ -328,9 +316,7 @@ class WhoisLookupModule(BaseModule):
             "registrant_email",
             "registrant_country",
         ]
-        combined = " ".join(
-            str(data.get(f, "")).lower() for f in fields_to_check
-        )
+        combined = " ".join(str(data.get(f, "")).lower() for f in fields_to_check)
         return any(kw in combined for kw in _PRIVACY_KEYWORDS)
 
     @staticmethod
@@ -341,5 +327,5 @@ class WhoisLookupModule(BaseModule):
             return target.split("@", 1)[1]
         for scheme in ("https://", "http://"):
             if target.startswith(scheme):
-                target = target[len(scheme):]
+                target = target[len(scheme) :]
         return target.split("/")[0].split("?")[0]

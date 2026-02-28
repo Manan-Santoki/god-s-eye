@@ -113,15 +113,15 @@ class EmailValidatorModule(BaseModule):
                 "has_mx_records": False,
                 "mx_records": [],
                 "has_spf": False,
-                    "spf_record": None,
-                    "has_dmarc": False,
-                    "dmarc_record": None,
-                    "is_disposable": False,
-                    "email_provider": None,
-                    "domain": None,
-                },
-                warnings=["Email format is invalid — skipping DNS checks."],
-            )
+                "spf_record": None,
+                "has_dmarc": False,
+                "dmarc_record": None,
+                "is_disposable": False,
+                "email_provider": None,
+                "domain": None,
+            },
+            warnings=["Email format is invalid — skipping DNS checks."],
+        )
 
         domain = target.split("@", 1)[1]
 

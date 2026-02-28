@@ -18,9 +18,7 @@ import structlog
 from structlog.types import EventDict, WrappedLogger
 
 
-def _add_caller_info(
-    logger: WrappedLogger, method_name: str, event_dict: EventDict
-) -> EventDict:
+def _add_caller_info(logger: WrappedLogger, method_name: str, event_dict: EventDict) -> EventDict:
     """Add module name from logger name to every log event."""
     if hasattr(logger, "name"):
         event_dict.setdefault("logger", logger.name)

@@ -235,12 +235,11 @@ class SherlockWrapperModule(BaseModule):
                 stdout, stderr = await asyncio.wait_for(
                     proc.communicate(), timeout=_SUBPROCESS_TIMEOUT
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 proc.kill()
                 await proc.communicate()
                 warnings.append(
-                    f"Sherlock timed out after {_SUBPROCESS_TIMEOUT}s. "
-                    "Results may be incomplete."
+                    f"Sherlock timed out after {_SUBPROCESS_TIMEOUT}s. Results may be incomplete."
                 )
                 # Attempt to read partial JSON output
                 if output_path.exists():
@@ -262,9 +261,7 @@ class SherlockWrapperModule(BaseModule):
             return {}
 
         except FileNotFoundError:
-            warnings.append(
-                "Sherlock not found. Install with: pip install sherlock-project"
-            )
+            warnings.append("Sherlock not found. Install with: pip install sherlock-project")
             logger.error("sherlock_not_installed")
             return None
         except Exception as exc:

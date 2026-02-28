@@ -23,8 +23,7 @@ from __future__ import annotations
 
 import csv
 import json
-import traceback
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -318,7 +317,7 @@ class ReportGenerator:
 
         prompt = EXECUTIVE_SUMMARY_PROMPT.format(
             target=session.target,
-            date=datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+            date=datetime.now(UTC).strftime("%Y-%m-%d"),
             risk_score=risk_score,
             risk_level=risk_level,
             findings=findings,
@@ -345,7 +344,7 @@ class ReportGenerator:
 
         prompt = FULL_REPORT_PROMPT.format(
             target=session.target,
-            date=datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+            date=datetime.now(UTC).strftime("%Y-%m-%d"),
             request_id=session.request_id,
             risk_score=session.context.get("risk_score", 0.0),
             module_count=module_count,
@@ -378,7 +377,7 @@ class ReportGenerator:
             f"# GOD_EYE OSINT Report\n\n"
             f"**Target:** {session.target}  \n"
             f"**Request ID:** {session.request_id}  \n"
-            f"**Date:** {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}  \n"
+            f"**Date:** {datetime.now(UTC).strftime('%Y-%m-%d %H:%M UTC')}  \n"
             f"**Risk Score:** {session.context.get('risk_score', 'N/A')}/10 "
             f"({session.context.get('risk_level', 'N/A')})  \n\n"
             f"---\n\n"
@@ -397,9 +396,11 @@ class ReportGenerator:
         Returns the path to the HTML file.
         """
         try:
-            from jinja2 import Environment, BaseLoader, select_autoescape
+            from jinja2 import BaseLoader, Environment, select_autoescape
         except ImportError as exc:
-            raise RuntimeError("jinja2 is required for HTML export. Install it with: pip install jinja2") from exc
+            raise RuntimeError(
+                "jinja2 is required for HTML export. Install it with: pip install jinja2"
+            ) from exc
 
         session.reports_dir.mkdir(parents=True, exist_ok=True)
         path = session.reports_dir / "full_report.html"
@@ -414,13 +415,14 @@ class ReportGenerator:
         )
         # Allow tojson filter
         import json as _json
+
         env.filters["tojson"] = lambda obj, **kw: _json.dumps(obj, default=str, **kw)
 
         template = env.from_string(_HTML_TEMPLATE)
         html_content = template.render(
             title=session.target,
             request_id=session.request_id,
-            date=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
+            date=datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC"),
             risk_score=session.context.get("risk_score"),
             risk_level=session.context.get("risk_level", "unknown"),
             modules_executed=len(session.modules_executed),
@@ -483,9 +485,9 @@ class ReportGenerator:
                 "request_id": session.request_id,
                 "target": session.target,
                 "target_type": session.target_type.value
-                    if hasattr(session.target_type, "value")
-                    else str(session.target_type),
-                "generated_at": datetime.now(timezone.utc).isoformat(),
+                if hasattr(session.target_type, "value")
+                else str(session.target_type),
+                "generated_at": datetime.now(UTC).isoformat(),
                 "risk_score": session.context.get("risk_score"),
                 "risk_level": session.context.get("risk_level"),
                 "modules_executed": session.modules_executed,
@@ -520,47 +522,61 @@ class ReportGenerator:
         risk_data = self._load_json(session.correlation_dir / "risk_assessment.json")
         if isinstance(risk_data, dict):
             for category, score in (risk_data.get("breakdown") or {}).items():
-                rows.append({
-                    "module": "risk_scorer",
-                    "finding_type": "risk_factor",
-                    "value": f"{score:.1f}",
-                    "platform": category,
-                    "confidence": "high",
-                    "timestamp": "",
-                    "description": category.replace("_", " ").title(),
-                })
+                rows.append(
+                    {
+                        "module": "risk_scorer",
+                        "finding_type": "risk_factor",
+                        "value": f"{score:.1f}",
+                        "platform": category,
+                        "confidence": "high",
+                        "timestamp": "",
+                        "description": category.replace("_", " ").title(),
+                    }
+                )
 
         # Timeline rows
         timeline = self._load_json(session.correlation_dir / "timeline.json")
         if isinstance(timeline, list):
             for ev in timeline:
                 if isinstance(ev, dict):
-                    rows.append({
-                        "module": ev.get("source_module", ""),
-                        "finding_type": ev.get("event_type", ""),
-                        "value": ev.get("description", ""),
-                        "platform": ev.get("platform", ""),
-                        "confidence": (ev.get("data") or {}).get("confidence", ""),
-                        "timestamp": ev.get("timestamp", ""),
-                        "description": ev.get("description", ""),
-                    })
+                    rows.append(
+                        {
+                            "module": ev.get("source_module", ""),
+                            "finding_type": ev.get("event_type", ""),
+                            "value": ev.get("description", ""),
+                            "platform": ev.get("platform", ""),
+                            "confidence": (ev.get("data") or {}).get("confidence", ""),
+                            "timestamp": ev.get("timestamp", ""),
+                            "description": ev.get("description", ""),
+                        }
+                    )
 
         # Connection rows
         connections = self._load_json(session.correlation_dir / "connections.json")
         if isinstance(connections, list):
             for conn in connections:
                 if isinstance(conn, dict):
-                    rows.append({
-                        "module": ", ".join(conn.get("source_modules") or []),
-                        "finding_type": conn.get("connection_type", ""),
-                        "value": "; ".join(conn.get("entities") or []),
-                        "platform": "",
-                        "confidence": str(conn.get("confidence", "")),
-                        "timestamp": "",
-                        "description": conn.get("description", ""),
-                    })
+                    rows.append(
+                        {
+                            "module": ", ".join(conn.get("source_modules") or []),
+                            "finding_type": conn.get("connection_type", ""),
+                            "value": "; ".join(conn.get("entities") or []),
+                            "platform": "",
+                            "confidence": str(conn.get("confidence", "")),
+                            "timestamp": "",
+                            "description": conn.get("description", ""),
+                        }
+                    )
 
-        fieldnames = ["module", "finding_type", "value", "platform", "confidence", "timestamp", "description"]
+        fieldnames = [
+            "module",
+            "finding_type",
+            "value",
+            "platform",
+            "confidence",
+            "timestamp",
+            "description",
+        ]
 
         with open(path, "w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
@@ -708,7 +724,9 @@ class ReportGenerator:
             if total >= max_chars:
                 break
             try:
-                chunk = f"\n=== {module_name.upper()} ===\n{json.dumps(data, indent=2, default=str)}\n"
+                chunk = (
+                    f"\n=== {module_name.upper()} ===\n{json.dumps(data, indent=2, default=str)}\n"
+                )
             except Exception:
                 chunk = f"\n=== {module_name.upper()} ===\n[unparseable data]\n"
             lines.append(chunk[:2000])  # cap individual module
@@ -747,9 +765,7 @@ class ReportGenerator:
                     )
                 inline_images = serpapi.get("inline_images", [])
                 if isinstance(inline_images, list):
-                    lines.append(
-                        f"serpapi_search inline_images={len(inline_images)}"
-                    )
+                    lines.append(f"serpapi_search inline_images={len(inline_images)}")
             else:
                 lines.append(
                     f"serpapi_search ran with total_results={serpapi.get('total_results', 0)}"
@@ -771,9 +787,7 @@ class ReportGenerator:
 
         paste_monitor = results.get("paste_monitor")
         if isinstance(paste_monitor, dict):
-            lines.append(
-                f"paste_monitor total_found={paste_monitor.get('total_found', 0)}"
-            )
+            lines.append(f"paste_monitor total_found={paste_monitor.get('total_found', 0)}")
 
         wayback = results.get("wayback")
         if isinstance(wayback, dict):
@@ -818,24 +832,25 @@ class ReportGenerator:
                 f"gps_hits={exif.get('gps_count', exif.get('images_with_gps', 0))}"
             )
         if isinstance(face, dict):
-            lines.append(
-                f"face_recognition matches={face.get('match_count', 0)}"
-            )
+            lines.append(f"face_recognition matches={face.get('match_count', 0)}")
         if isinstance(reverse, dict):
-            lines.append(
-                f"reverse_image_search matches={reverse.get('match_count', 0)}"
-            )
+            lines.append(f"reverse_image_search matches={reverse.get('match_count', 0)}")
 
         if not lines:
             executed_image_modules = [
                 name
                 for name in session.modules_executed
-                if name in {"image_downloader", "exif_extractor", "face_recognition", "reverse_image_search"}
+                if name
+                in {
+                    "image_downloader",
+                    "exif_extractor",
+                    "face_recognition",
+                    "reverse_image_search",
+                }
             ]
             if executed_image_modules:
-                return (
-                    "Image modules executed but produced no image evidence: "
-                    + ", ".join(executed_image_modules)
+                return "Image modules executed but produced no image evidence: " + ", ".join(
+                    executed_image_modules
                 )
             return "No image modules executed and no image evidence collected."
 
@@ -883,7 +898,7 @@ class ReportGenerator:
         return (
             f"OSINT investigation for target '{session.target}' "
             f"(type: {session.target_type.value if hasattr(session.target_type, 'value') else session.target_type}) "
-            f"completed on {datetime.now(timezone.utc).strftime('%Y-%m-%d')}. "
+            f"completed on {datetime.now(UTC).strftime('%Y-%m-%d')}. "
             f"\n\n"
             f"The scan executed {executed} intelligence modules "
             f"({failed} failed/skipped) and discovered {findings} findings. "
@@ -897,11 +912,13 @@ class ReportGenerator:
     def _fallback_full_report(self, session: ScanSession) -> str:
         """Generate a Markdown report without LLM when AI is disabled."""
         lines: list[str] = []
-        lines.append(f"# GOD_EYE Intelligence Report\n")
+        lines.append("# GOD_EYE Intelligence Report\n")
         lines.append(f"**Target:** {session.target}")
         lines.append(f"**Request ID:** {session.request_id}")
-        lines.append(f"**Date:** {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
-        lines.append(f"**Risk Score:** {session.context.get('risk_score', 'N/A')}/10 ({session.context.get('risk_level', 'N/A')})")
+        lines.append(f"**Date:** {datetime.now(UTC).strftime('%Y-%m-%d %H:%M UTC')}")
+        lines.append(
+            f"**Risk Score:** {session.context.get('risk_score', 'N/A')}/10 ({session.context.get('risk_level', 'N/A')})"
+        )
         lines.append(f"**Modules Executed:** {len(session.modules_executed)}")
         lines.append(f"**Total Findings:** {session.total_findings}")
         lines.append("\n---\n")
@@ -913,7 +930,7 @@ class ReportGenerator:
             try:
                 lines.append(f"```json\n{json.dumps(data, indent=2, default=str)}\n```\n")
             except Exception:
-                lines.append(f"*[Data could not be serialized]*\n")
+                lines.append("*[Data could not be serialized]*\n")
 
         if not results:
             lines.append("*No module results available.*\n")

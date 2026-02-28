@@ -121,9 +121,7 @@ class DeHashedModule(BaseModule):
             except AuthenticationError:
                 return ModuleResult.fail("DeHashed authentication failed — check credentials")
             except RateLimitError as exc:
-                return ModuleResult.fail(
-                    f"DeHashed rate limited (retry after {exc.retry_after}s)"
-                )
+                return ModuleResult.fail(f"DeHashed rate limited (retry after {exc.retry_after}s)")
             except APIError as exc:
                 return ModuleResult.fail(f"DeHashed API error: {exc}")
             except Exception as exc:
@@ -137,14 +135,10 @@ class DeHashedModule(BaseModule):
         entries = [self._parse_entry(e) for e in raw_entries if isinstance(e, dict)]
 
         # Flag any record with a plaintext password
-        has_plaintext_passwords = any(
-            bool(e.get("password")) for e in entries
-        )
+        has_plaintext_passwords = any(bool(e.get("password")) for e in entries)
 
         # Collect unique database names seen in results
-        unique_databases = sorted(
-            {e["database_name"] for e in entries if e.get("database_name")}
-        )
+        unique_databases = sorted({e["database_name"] for e in entries if e.get("database_name")})
 
         elapsed_ms = int((time.monotonic() - start) * 1000)
         logger.info(
@@ -214,10 +208,7 @@ class DeHashedModule(BaseModule):
                 return data if isinstance(data, dict) else {}
 
             if resp.status in (401, 403):
-                raise AuthenticationError(
-                    "DeHashed",
-                    "Invalid credentials (email or API key)"
-                )
+                raise AuthenticationError("DeHashed", "Invalid credentials (email or API key)")
 
             if resp.status == 429:
                 retry_after_raw = resp.headers.get("Retry-After", "60")

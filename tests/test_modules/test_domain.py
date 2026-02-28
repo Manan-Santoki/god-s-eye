@@ -2,7 +2,7 @@
 Tests for domain intelligence modules.
 """
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -15,6 +15,7 @@ class TestDNSRecon:
     @pytest.mark.asyncio
     async def test_metadata(self):
         from app.modules.domain.dns_recon import DNSReconModule
+
         module = DNSReconModule()
         meta = module.metadata()
         assert meta.name == "dns_recon"
@@ -23,6 +24,7 @@ class TestDNSRecon:
     @pytest.mark.asyncio
     async def test_validate_domain(self):
         from app.modules.domain.dns_recon import DNSReconModule
+
         module = DNSReconModule()
         assert await module.validate("example.com", TargetType.DOMAIN) is True
         assert await module.validate("sub.example.com", TargetType.DOMAIN) is True
@@ -31,6 +33,7 @@ class TestDNSRecon:
     @pytest.mark.asyncio
     async def test_run_with_mocked_dns(self):
         from app.modules.domain.dns_recon import DNSReconModule
+
         module = DNSReconModule()
 
         with patch("dns.resolver.resolve") as mock_resolve:
@@ -46,6 +49,7 @@ class TestDNSRecon:
     @pytest.mark.asyncio
     async def test_run_dns_failure_graceful(self):
         from app.modules.domain.dns_recon import DNSReconModule
+
         module = DNSReconModule()
 
         with patch("dns.resolver.resolve", side_effect=Exception("DNS resolution failed")):
@@ -62,6 +66,7 @@ class TestCertificateSearch:
     @pytest.mark.asyncio
     async def test_metadata(self):
         from app.modules.domain.certificate_search import CertificateSearchModule
+
         module = CertificateSearchModule()
         meta = module.metadata()
         assert meta.name == "certificate_search"
@@ -70,12 +75,25 @@ class TestCertificateSearch:
     @pytest.mark.asyncio
     async def test_run_with_mocked_crt_sh(self, mock_aiohttp_response):
         from app.modules.domain.certificate_search import CertificateSearchModule
+
         module = CertificateSearchModule()
 
         crt_data = [
-            {"name_value": "example.com", "issuer_name": "Let's Encrypt", "not_before": "2024-01-01"},
-            {"name_value": "www.example.com", "issuer_name": "Let's Encrypt", "not_before": "2024-01-01"},
-            {"name_value": "mail.example.com", "issuer_name": "DigiCert", "not_before": "2023-06-01"},
+            {
+                "name_value": "example.com",
+                "issuer_name": "Let's Encrypt",
+                "not_before": "2024-01-01",
+            },
+            {
+                "name_value": "www.example.com",
+                "issuer_name": "Let's Encrypt",
+                "not_before": "2024-01-01",
+            },
+            {
+                "name_value": "mail.example.com",
+                "issuer_name": "DigiCert",
+                "not_before": "2023-06-01",
+            },
         ]
 
         mock_resp = mock_aiohttp_response(crt_data, status=200)
@@ -93,6 +111,7 @@ class TestSubdomainEnum:
     @pytest.mark.asyncio
     async def test_metadata(self):
         from app.modules.domain.subdomain_enum import SubdomainEnumModule
+
         module = SubdomainEnumModule()
         meta = module.metadata()
         assert meta.name == "subdomain_enum"
@@ -101,6 +120,7 @@ class TestSubdomainEnum:
     @pytest.mark.asyncio
     async def test_validate(self):
         from app.modules.domain.subdomain_enum import SubdomainEnumModule
+
         module = SubdomainEnumModule()
         assert await module.validate("example.com", TargetType.DOMAIN) is True
         assert await module.validate("x", TargetType.DOMAIN) is False
@@ -108,6 +128,7 @@ class TestSubdomainEnum:
     @pytest.mark.asyncio
     async def test_run_with_mocked_dns(self, mock_aiohttp_response):
         from app.modules.domain.subdomain_enum import SubdomainEnumModule
+
         module = SubdomainEnumModule()
 
         # Mock crt.sh response

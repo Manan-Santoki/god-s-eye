@@ -91,7 +91,11 @@ class GitHubAPIModule(BaseModule):
                 profile = await self._fetch_profile(session, username)
             except APIError as exc:
                 if exc.status_code == 404:
-                    resolved_username, profile, resolution_query = await self._resolve_username_via_search(
+                    (
+                        resolved_username,
+                        profile,
+                        resolution_query,
+                    ) = await self._resolve_username_via_search(
                         session,
                         target=username,
                         queries=search_queries,
@@ -209,7 +213,9 @@ class GitHubAPIModule(BaseModule):
                 )
                 return username, profile, query
             except APIError as exc:
-                errors.append(f"GitHub candidate '{username}' failed after search query '{query}': {exc}")
+                errors.append(
+                    f"GitHub candidate '{username}' failed after search query '{query}': {exc}"
+                )
 
         return None, None, None
 
@@ -450,10 +456,7 @@ class GitHubAPIModule(BaseModule):
             # Extract from author
             author = commit.get("author", {}) or {}
             if email := author.get("email"):
-                if (
-                    email_pattern.match(email)
-                    and not email.endswith("@users.noreply.github.com")
-                ):
+                if email_pattern.match(email) and not email.endswith("@users.noreply.github.com"):
                     emails.add(email.lower())
 
             # Extract from committer

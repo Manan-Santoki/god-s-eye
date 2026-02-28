@@ -13,12 +13,11 @@ import time
 from typing import Any
 
 import aiohttp
-import dns.resolver
 import dns.exception
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+import dns.resolver
 
 from app.core.config import settings
-from app.core.constants import TargetType, ModulePhase, COMMON_SUBDOMAINS
+from app.core.constants import COMMON_SUBDOMAINS, ModulePhase, TargetType
 from app.core.exceptions import APIError, RateLimitError
 from app.core.logging import get_logger
 from app.modules.base import BaseModule, ModuleMetadata, ModuleResult
@@ -50,7 +49,9 @@ class SubdomainEnum(BaseModule):
 
     async def run(self, target: str, target_type: TargetType, context: dict) -> ModuleResult:
         start = time.monotonic()
-        domain = target.lower().strip().lstrip("www.")
+        domain = target.strip().lower()
+        if domain.startswith("www."):
+            domain = domain[4:]
 
         try:
             # Run all three methods in parallel
@@ -63,11 +64,11 @@ class SubdomainEnum(BaseModule):
             all_subdomains: set[str] = set()
             methods_used: list[str] = []
 
-            for i, (method_name, result) in enumerate(
-                zip(["crt.sh", "securitytrails", "bruteforce"], results)
+            for _i, (method_name, result) in enumerate(
+                zip(["crt.sh", "securitytrails", "bruteforce"], results, strict=False)
             ):
                 if isinstance(result, Exception):
-                    logger.warning(f"subdomain_method_failed", method=method_name, error=str(result))
+                    logger.warning("subdomain_method_failed", method=method_name, error=str(result))
                 elif isinstance(result, set):
                     all_subdomains.update(result)
                     methods_used.append(method_name)
@@ -168,9 +169,7 @@ class SubdomainEnum(BaseModule):
             async with semaphore:
                 try:
                     loop = asyncio.get_event_loop()
-                    await loop.run_in_executor(
-                        None, resolver.resolve, subdomain, "A"
-                    )
+                    await loop.run_in_executor(None, resolver.resolve, subdomain, "A")
                     found.add(subdomain)
                 except Exception:
                     pass
@@ -187,7 +186,6 @@ class SubdomainEnum(BaseModule):
         resolver = dns.resolver.Resolver()
         resolver.timeout = 3
         resolver.lifetime = 3
-        results: list[dict[str, Any]] = []
 
         async def verify(sub: str) -> dict[str, Any]:
             async with semaphore:
@@ -195,9 +193,7 @@ class SubdomainEnum(BaseModule):
                 source = "brute_force" if sub.split(".")[0] in COMMON_SUBDOMAINS else "passive"
                 try:
                     loop = asyncio.get_event_loop()
-                    answers = await loop.run_in_executor(
-                        None, resolver.resolve, sub, "A"
-                    )
+                    answers = await loop.run_in_executor(None, resolver.resolve, sub, "A")
                     ips = [str(r) for r in answers]
                     return {
                         "name": sub,

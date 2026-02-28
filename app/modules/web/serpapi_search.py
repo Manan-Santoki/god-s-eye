@@ -98,9 +98,7 @@ class SerpAPISearchModule(BaseModule):
                 "serpapi_search_skipped",
                 reason="SERPAPI_API_KEY not configured",
             )
-            return ModuleResult.fail(
-                "SerpApi not configured: set SERPAPI_API_KEY"
-            )
+            return ModuleResult.fail("SerpApi not configured: set SERPAPI_API_KEY")
 
         results: list[dict[str, Any]] = []
         query_reports: list[dict[str, Any]] = []
@@ -115,7 +113,13 @@ class SerpAPISearchModule(BaseModule):
         seen_image_urls: set[str] = set()
         fatal_error = False
         pages = max(1, int(get_module_setting("web", "serpapi_search", "pages", 2) or 2))
-        max_results = max(10, int(get_module_setting("web", "serpapi_search", "max_results", pages * 10) or (pages * 10)))
+        max_results = max(
+            10,
+            int(
+                get_module_setting("web", "serpapi_search", "max_results", pages * 10)
+                or (pages * 10)
+            ),
+        )
 
         async with aiohttp.ClientSession(
             timeout=aiohttp.ClientTimeout(total=settings.request_timeout_seconds),
@@ -130,7 +134,12 @@ class SerpAPISearchModule(BaseModule):
             )
 
             for query in search_queries:
-                main_results, image_results, knowledge_items, query_report = await self._search_paginated(
+                (
+                    main_results,
+                    image_results,
+                    knowledge_items,
+                    query_report,
+                ) = await self._search_paginated(
                     session=session,
                     api_key=api_key,
                     query=query,
@@ -172,11 +181,9 @@ class SerpAPISearchModule(BaseModule):
                     for template, query in dork_queries.items()
                 }
 
-                dork_responses = await asyncio.gather(
-                    *dork_tasks.values(), return_exceptions=True
-                )
+                dork_responses = await asyncio.gather(*dork_tasks.values(), return_exceptions=True)
 
-                for template, response in zip(dork_tasks.keys(), dork_responses):
+                for template, response in zip(dork_tasks.keys(), dork_responses, strict=False):
                     if isinstance(response, Exception):
                         errors.append(f"Dork '{template}' failed: {response}")
                         dork_results[template] = []
@@ -199,7 +206,10 @@ class SerpAPISearchModule(BaseModule):
                 )
                 image_result_limit = max(
                     1,
-                    int(get_module_setting("web", "serpapi_search", "image_results_per_query", 10) or 10),
+                    int(
+                        get_module_setting("web", "serpapi_search", "image_results_per_query", 10)
+                        or 10
+                    ),
                 )
                 for query in image_queries[:image_query_limit]:
                     images, image_report = await self._search_images(
@@ -322,8 +332,12 @@ class SerpAPISearchModule(BaseModule):
                     int(page_payload.get("reported_total_results", 0) or 0),
                 )
                 search_time = max(search_time, float(page_payload.get("search_time", 0.0) or 0.0))
-                self._extend_unique_images(inline_images, page_payload.get("inline_images", []), set())
-                self._extend_unique_artifacts(knowledge_graph_hits, page_payload.get("knowledge_graph_hits", []))
+                self._extend_unique_images(
+                    inline_images, page_payload.get("inline_images", []), set()
+                )
+                self._extend_unique_artifacts(
+                    knowledge_graph_hits, page_payload.get("knowledge_graph_hits", [])
+                )
                 metadata = page_payload.get("metadata", metadata)
                 if not items:
                     break
@@ -386,7 +400,9 @@ class SerpAPISearchModule(BaseModule):
                     "reported_total_results": len(page_payload["items"]),
                     "search_time": float(page_payload.get("search_time", 0.0) or 0.0),
                     "location_used": page_payload.get("metadata", {}).get("location_used"),
-                    "location_requested": page_payload.get("metadata", {}).get("location_requested"),
+                    "location_requested": page_payload.get("metadata", {}).get(
+                        "location_requested"
+                    ),
                     "organic_results_state": "image_results",
                     "json_endpoint": page_payload.get("metadata", {}).get("json_endpoint"),
                     "raw_html_file": page_payload.get("metadata", {}).get("raw_html_file"),
@@ -438,7 +454,9 @@ class SerpAPISearchModule(BaseModule):
         }
 
         google_domain = get_module_setting("web", "serpapi_search", "google_domain", None)
-        location = settings.serpapi_location or get_module_setting("web", "serpapi_search", "location", None)
+        location = settings.serpapi_location or get_module_setting(
+            "web", "serpapi_search", "location", None
+        )
         gl = get_module_setting("web", "serpapi_search", "gl", None)
         hl = get_module_setting("web", "serpapi_search", "hl", None)
         safe = get_module_setting("web", "serpapi_search", "safe", None)
@@ -522,9 +540,13 @@ class SerpAPISearchModule(BaseModule):
 
         inline_images = self._parse_inline_images(payload)
         knowledge_graph_hits = self._parse_knowledge_graph(payload)
-        search_information = payload.get("search_information", {}) if isinstance(payload, dict) else {}
+        search_information = (
+            payload.get("search_information", {}) if isinstance(payload, dict) else {}
+        )
         search_metadata = payload.get("search_metadata", {}) if isinstance(payload, dict) else {}
-        search_parameters = payload.get("search_parameters", {}) if isinstance(payload, dict) else {}
+        search_parameters = (
+            payload.get("search_parameters", {}) if isinstance(payload, dict) else {}
+        )
 
         return {
             "items": items,
@@ -562,7 +584,9 @@ class SerpAPISearchModule(BaseModule):
             "ijn": 0,
         }
         google_domain = get_module_setting("web", "serpapi_search", "google_domain", None)
-        location = settings.serpapi_location or get_module_setting("web", "serpapi_search", "location", None)
+        location = settings.serpapi_location or get_module_setting(
+            "web", "serpapi_search", "location", None
+        )
         gl = get_module_setting("web", "serpapi_search", "gl", None)
         hl = get_module_setting("web", "serpapi_search", "hl", None)
         if google_domain:
@@ -626,7 +650,9 @@ class SerpAPISearchModule(BaseModule):
             )
 
         search_metadata = payload.get("search_metadata", {}) if isinstance(payload, dict) else {}
-        search_parameters = payload.get("search_parameters", {}) if isinstance(payload, dict) else {}
+        search_parameters = (
+            payload.get("search_parameters", {}) if isinstance(payload, dict) else {}
+        )
         return {
             "items": items,
             "search_time": float(search_metadata.get("total_time_taken", 0.0) or 0.0),
@@ -763,13 +789,13 @@ class SerpAPISearchModule(BaseModule):
             relaxed_queries.append(f"{name} {location_filter}")
 
         if name and email:
-            exact_queries.append(f'{q(name)} {q(email)}')
+            exact_queries.append(f"{q(name)} {q(email)}")
             relaxed_queries.append(f"{name} {email}")
         if name and username:
-            exact_queries.append(f'{q(name)} {q(username)}')
+            exact_queries.append(f"{q(name)} {q(username)}")
             relaxed_queries.append(f"{name} {username}")
         if company and domain:
-            exact_queries.append(f'{q(company)} {q(domain)}')
+            exact_queries.append(f"{q(company)} {q(domain)}")
             relaxed_queries.append(f"{company} {domain}")
 
         for value in [name, email, username, company, phone, normalized]:
@@ -779,7 +805,7 @@ class SerpAPISearchModule(BaseModule):
 
         if email and "@" in email:
             local_part, email_domain = email.split("@", 1)
-            exact_queries.append(f'{q(local_part)} {q(email_domain)}')
+            exact_queries.append(f"{q(local_part)} {q(email_domain)}")
             relaxed_queries.append(f"{local_part} {email_domain}")
 
         if target_type == TargetType.DOMAIN and normalized:
@@ -788,14 +814,18 @@ class SerpAPISearchModule(BaseModule):
             exact_queries.append(f"site:{domain}")
 
         queries = exact_queries + relaxed_queries
-        return [query for query in dict.fromkeys(query.strip() for query in queries if query.strip())]
+        return [
+            query for query in dict.fromkeys(query.strip() for query in queries if query.strip())
+        ]
 
     @staticmethod
     def _build_dork_queries(
         search_queries: list[str],
         context: dict[str, Any] | None = None,
     ) -> dict[str, str]:
-        max_queries = max(1, int(get_module_setting("web", "google_dorker", "max_queries", 30) or 30))
+        max_queries = max(
+            1, int(get_module_setting("web", "google_dorker", "max_queries", 30) or 30)
+        )
         queries: dict[str, str] = {}
 
         inputs: dict[str, Any] = {}
@@ -933,7 +963,9 @@ class SerpAPISearchModule(BaseModule):
         discovered: list[dict[str, str]] = []
         seen: set[str] = set()
 
-        def add(url: str, title: str = "", snippet: str = "", source_module: str = "serpapi_search") -> None:
+        def add(
+            url: str, title: str = "", snippet: str = "", source_module: str = "serpapi_search"
+        ) -> None:
             normalized = str(url).strip()
             if not normalized or normalized in seen:
                 return

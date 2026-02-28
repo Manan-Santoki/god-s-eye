@@ -43,7 +43,9 @@ class WebSnapshotModule(BaseModule):
             tags=["browser", "screenshot", "evidence", "web"],
         )
 
-    async def run(self, target: str, target_type: TargetType, context: dict[str, Any]) -> ModuleResult:
+    async def run(
+        self, target: str, target_type: TargetType, context: dict[str, Any]
+    ) -> ModuleResult:
         urls = self._collect_urls(context)
         if not urls:
             return ModuleResult(
@@ -125,7 +127,9 @@ class WebSnapshotModule(BaseModule):
 
         for item in context.get("discovered_urls", []) or []:
             if isinstance(item, dict):
-                add(item.get("url", ""), item.get("title", ""), item.get("source_module", "context"))
+                add(
+                    item.get("url", ""), item.get("title", ""), item.get("source_module", "context")
+                )
             elif isinstance(item, str):
                 add(item, "", "context")
 
@@ -135,7 +139,11 @@ class WebSnapshotModule(BaseModule):
         ):
             for item in context.get(key, []) or []:
                 if isinstance(item, dict):
-                    add(item.get("url", ""), item.get("slug") or item.get("username") or "", source_module)
+                    add(
+                        item.get("url", ""),
+                        item.get("slug") or item.get("username") or "",
+                        source_module,
+                    )
                 elif isinstance(item, str):
                     add(item, "", source_module)
 

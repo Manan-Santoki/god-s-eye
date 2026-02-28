@@ -54,32 +54,32 @@ def _generate_permutations(
 
     Returns deduplicated list preserving generation order.
     """
-    f = _normalize_name_part(first)
-    l = _normalize_name_part(last)
-    fi = f[0] if f else ""
-    li = l[0] if l else ""
+    first_part = _normalize_name_part(first)
+    last_part = _normalize_name_part(last)
+    fi = first_part[0] if first_part else ""
+    li = last_part[0] if last_part else ""
 
     templates: list[str] = []
 
-    if f:
-        templates.append(f"{f}@{domain}")                    # john@
-    if l:
-        templates.append(f"{l}@{domain}")                    # doe@
-    if f and l:
-        templates.append(f"{f}{l}@{domain}")                 # johndoe@
-        templates.append(f"{f}.{l}@{domain}")                # john.doe@
-        templates.append(f"{f}_{l}@{domain}")                # john_doe@
-        templates.append(f"{f}-{l}@{domain}")                # john-doe@
-    if fi and l:
-        templates.append(f"{fi}.{l}@{domain}")               # j.doe@
-        templates.append(f"{fi}{l}@{domain}")                # jdoe@
-    if f and li:
-        templates.append(f"{f}.{li}@{domain}")               # john.d@
-    if l and fi:
-        templates.append(f"{l}{fi}@{domain}")                # doej@
+    if first_part:
+        templates.append(f"{first_part}@{domain}")  # john@
+    if last_part:
+        templates.append(f"{last_part}@{domain}")  # doe@
+    if first_part and last_part:
+        templates.append(f"{first_part}{last_part}@{domain}")  # johndoe@
+        templates.append(f"{first_part}.{last_part}@{domain}")  # john.doe@
+        templates.append(f"{first_part}_{last_part}@{domain}")  # john_doe@
+        templates.append(f"{first_part}-{last_part}@{domain}")  # john-doe@
+    if fi and last_part:
+        templates.append(f"{fi}.{last_part}@{domain}")  # j.doe@
+        templates.append(f"{fi}{last_part}@{domain}")  # jdoe@
+    if first_part and li:
+        templates.append(f"{first_part}.{li}@{domain}")  # john.d@
+    if last_part and fi:
+        templates.append(f"{last_part}{fi}@{domain}")  # doej@
     if fi and li:
-        templates.append(f"{fi}.{li}@{domain}")              # j.d@
-        templates.append(f"{fi}{li}@{domain}")               # jd@
+        templates.append(f"{fi}.{li}@{domain}")  # j.d@
+        templates.append(f"{fi}{li}@{domain}")  # jd@
 
     # Deduplicate while preserving order
     seen: set[str] = set()
@@ -189,7 +189,7 @@ class EmailPermutatorModule(BaseModule):
                 "total_generated": total,
                 "domain": domain,
                 "name_pairs_used": [
-                    {"first": f, "last": l} for f, l in name_pairs
+                    {"first": first_name, "last": last_name} for first_name, last_name in name_pairs
                 ],
             },
             warnings=warnings,
@@ -216,11 +216,11 @@ class EmailPermutatorModule(BaseModule):
         seen_pairs: set[tuple[str, str]] = set()
 
         def add_pair(first: str, last: str) -> None:
-            f = _normalize_name_part(first)
-            l = _normalize_name_part(last)
-            if f and l and (f, l) not in seen_pairs:
-                seen_pairs.add((f, l))
-                pairs.append((f, l))
+            first_name = _normalize_name_part(first)
+            last_name = _normalize_name_part(last)
+            if first_name and last_name and (first_name, last_name) not in seen_pairs:
+                seen_pairs.add((first_name, last_name))
+                pairs.append((first_name, last_name))
 
         # Source 1: context["discovered_names"]
         discovered: list[Any] = context.get("discovered_names", [])
@@ -232,27 +232,27 @@ class EmailPermutatorModule(BaseModule):
                     add_pair(first, last)
                 elif first or last:
                     combined = f"{first} {last}".strip()
-                    f, l = self._split_full_name(combined)
-                    if f and l:
-                        add_pair(f, l)
+                    first_name, last_name = self._split_full_name(combined)
+                    if first_name and last_name:
+                        add_pair(first_name, last_name)
             elif isinstance(entry, str) and entry.strip():
-                f, l = self._split_full_name(entry)
-                if f and l:
-                    add_pair(f, l)
+                first_name, last_name = self._split_full_name(entry)
+                if first_name and last_name:
+                    add_pair(first_name, last_name)
 
         # Source 2: context["person_name"]
         person_name = context.get("person_name", "")
         if person_name and isinstance(person_name, str):
-            f, l = self._split_full_name(person_name)
-            if f and l:
-                add_pair(f, l)
+            first_name, last_name = self._split_full_name(person_name)
+            if first_name and last_name:
+                add_pair(first_name, last_name)
 
         # Source 3: email local part fallback
         if not pairs and target_type == TargetType.EMAIL and "@" in target:
             local_part = target.split("@", 1)[0]
-            f, l = self._split_local_part(local_part)
-            if f and l:
-                add_pair(f, l)
+            first_name, last_name = self._split_local_part(local_part)
+            if first_name and last_name:
+                add_pair(first_name, last_name)
                 warnings.append(
                     f"No names found in context — derived permutations from "
                     f"email local part '{local_part}' (may be inaccurate)."

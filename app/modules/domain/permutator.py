@@ -21,19 +21,60 @@ logger = get_logger(__name__)
 
 DEFAULT_TLDS = [
     # Generic TLDs
-    "com", "net", "org", "info", "biz", "pro",
+    "com",
+    "net",
+    "org",
+    "info",
+    "biz",
+    "pro",
     # Developer/Tech
-    "io", "ai", "app", "dev", "tech", "cloud", "sh", "ws",
+    "io",
+    "ai",
+    "app",
+    "dev",
+    "tech",
+    "cloud",
+    "sh",
+    "ws",
     # Personal/Creative
-    "me", "co", "xyz", "site", "online", "name", "link",
-    "blog", "media", "studio", "design", "digital",
+    "me",
+    "co",
+    "xyz",
+    "site",
+    "online",
+    "name",
+    "link",
+    "blog",
+    "media",
+    "studio",
+    "design",
+    "digital",
     # Geographic — global
-    "us", "in", "uk", "co.uk", "au", "com.au", "ca",
-    "eu", "de", "fr", "nl", "sg", "nz",
+    "us",
+    "in",
+    "uk",
+    "co.uk",
+    "au",
+    "com.au",
+    "ca",
+    "eu",
+    "de",
+    "fr",
+    "nl",
+    "sg",
+    "nz",
     # Business
-    "services", "solutions", "consulting", "network", "store", "shop",
+    "services",
+    "solutions",
+    "consulting",
+    "network",
+    "store",
+    "shop",
     # Misc
-    "cc", "tv", "codes", "email",
+    "cc",
+    "tv",
+    "codes",
+    "email",
 ]
 
 
@@ -59,9 +100,16 @@ class DomainPermutatorModule(BaseModule):
         )
 
     async def validate(self, target: str, target_type: TargetType) -> bool:
-        return target_type in {TargetType.PERSON, TargetType.EMAIL, TargetType.USERNAME, TargetType.COMPANY}
+        return target_type in {
+            TargetType.PERSON,
+            TargetType.EMAIL,
+            TargetType.USERNAME,
+            TargetType.COMPANY,
+        }
 
-    async def run(self, target: str, target_type: TargetType, context: dict[str, Any]) -> ModuleResult:
+    async def run(
+        self, target: str, target_type: TargetType, context: dict[str, Any]
+    ) -> ModuleResult:
         start = time.monotonic()
         labels = self._build_labels(target, target_type, context)
         tlds = self._get_tlds()

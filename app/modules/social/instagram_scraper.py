@@ -36,17 +36,35 @@ from app.modules.base import BaseModule, ModuleMetadata, ModuleResult
 
 logger = get_logger(__name__)
 
-PROFILE_TIMEOUT   = 15_000   # ms
-LOGIN_TIMEOUT     = 25_000   # ms
-MAX_CANDIDATES    = 10       # max usernames to try
-MAX_POST_IMAGES   = 50       # max post images to collect
+PROFILE_TIMEOUT = 15_000  # ms
+LOGIN_TIMEOUT = 25_000  # ms
+MAX_CANDIDATES = 10  # max usernames to try
+MAX_POST_IMAGES = 50  # max post images to collect
 
-_SEL_USERNAME   = ["input[name='username']", "input[aria-label='Phone number, username, or email']"]
-_SEL_PASSWORD   = ["input[name='password']", "input[aria-label='Password']"]
-_SEL_SUBMIT     = ["button[type='submit']", "button:has-text('Log in')"]
-_INSTA_RESERVED = {"p", "reel", "explore", "accounts", "stories", "direct",
-                   "channels", "tv", "ar", "about", "legal", "privacy", "safety",
-                   "help", "press", "api", "blog", "jobs", "developers"}
+_SEL_USERNAME = ["input[name='username']", "input[aria-label='Phone number, username, or email']"]
+_SEL_PASSWORD = ["input[name='password']", "input[aria-label='Password']"]
+_SEL_SUBMIT = ["button[type='submit']", "button:has-text('Log in')"]
+_INSTA_RESERVED = {
+    "p",
+    "reel",
+    "explore",
+    "accounts",
+    "stories",
+    "direct",
+    "channels",
+    "tv",
+    "ar",
+    "about",
+    "legal",
+    "privacy",
+    "safety",
+    "help",
+    "press",
+    "api",
+    "blog",
+    "jobs",
+    "developers",
+}
 
 
 class InstagramScraper(BaseModule):
@@ -81,7 +99,9 @@ class InstagramScraper(BaseModule):
                 module_name=self.metadata().name,
                 target=target,
                 success=False,
-                errors=["Instagram credentials not configured (INSTAGRAM_USERNAME / INSTAGRAM_PASSWORD)"],
+                errors=[
+                    "Instagram credentials not configured (INSTAGRAM_USERNAME / INSTAGRAM_PASSWORD)"
+                ],
             )
 
         candidates = self._select_candidate_usernames(target, target_type, context)
@@ -97,6 +117,7 @@ class InstagramScraper(BaseModule):
         factory = None
         try:
             from app.engine.browser import BrowserFactory
+
             factory = await BrowserFactory.create()
             page = await factory.new_page(persist_session="instagram")
 
@@ -106,7 +127,9 @@ class InstagramScraper(BaseModule):
                     module_name=self.metadata().name,
                     target=target,
                     success=False,
-                    errors=["Instagram login failed — check INSTAGRAM_USERNAME / INSTAGRAM_PASSWORD"],
+                    errors=[
+                        "Instagram login failed — check INSTAGRAM_USERNAME / INSTAGRAM_PASSWORD"
+                    ],
                 )
 
             profile = None
@@ -131,19 +154,21 @@ class InstagramScraper(BaseModule):
                     "matched_username": matched_username,
                     "total_candidates": len(candidates),
                 },
-                errors=[] if profile else [
-                    f"No Instagram profile found for: {', '.join(attempted)}"
-                ],
+                errors=[]
+                if profile
+                else [f"No Instagram profile found for: {', '.join(attempted)}"],
                 execution_time_ms=elapsed,
             )
 
         except (LoginError, CaptchaError) as exc:
-            return ModuleResult(module_name=self.metadata().name, target=target,
-                                success=False, errors=[str(exc)])
+            return ModuleResult(
+                module_name=self.metadata().name, target=target, success=False, errors=[str(exc)]
+            )
         except Exception as exc:
             logger.error("instagram_scraper_error", error=str(exc))
-            return ModuleResult(module_name=self.metadata().name, target=target,
-                                success=False, errors=[str(exc)])
+            return ModuleResult(
+                module_name=self.metadata().name, target=target, success=False, errors=[str(exc)]
+            )
         finally:
             if page is not None and factory is not None:
                 try:
@@ -168,7 +193,9 @@ class InstagramScraper(BaseModule):
 
     async def _is_logged_in(self, page) -> bool:
         try:
-            await page.goto("https://www.instagram.com/", timeout=15000, wait_until="domcontentloaded")
+            await page.goto(
+                "https://www.instagram.com/", timeout=15000, wait_until="domcontentloaded"
+            )
             await asyncio.sleep(2)
             url = page.url.lower()
             if "accounts/login" in url:
@@ -206,7 +233,9 @@ class InstagramScraper(BaseModule):
             raise LoginError("instagram_scraper", "instagram")
         await password_el.click()
         await password_el.fill("")
-        await factory.human_type(page, _SEL_PASSWORD[0], settings.instagram_password.get_secret_value())
+        await factory.human_type(
+            page, _SEL_PASSWORD[0], settings.instagram_password.get_secret_value()
+        )
 
         # Submit
         submit_el = await self._wait_for_any(page, _SEL_SUBMIT, 5000)
@@ -270,8 +299,8 @@ class InstagramScraper(BaseModule):
 
         # Core profile fields
         full_name = await self._extract_full_name(page)
-        bio       = await self._extract_bio(page)
-        ext_url   = await self._extract_external_url(page)
+        bio = await self._extract_bio(page)
+        ext_url = await self._extract_external_url(page)
         profile_image_url = await self._extract_profile_image(page)
 
         # Follower/following/post counts
@@ -285,18 +314,22 @@ class InstagramScraper(BaseModule):
         # Build discovered_image_urls list for the AI vision module
         discovered_images: list[dict[str, str]] = []
         if profile_image_url:
-            discovered_images.append({
-                "url": profile_image_url,
-                "platform": "instagram",
-                "description": f"{username} profile picture",
-            })
+            discovered_images.append(
+                {
+                    "url": profile_image_url,
+                    "platform": "instagram",
+                    "description": f"{username} profile picture",
+                }
+            )
         for url in image_urls:
             if url != profile_image_url:
-                discovered_images.append({
-                    "url": url,
-                    "platform": "instagram",
-                    "description": f"{username} post image",
-                })
+                discovered_images.append(
+                    {
+                        "url": url,
+                        "platform": "instagram",
+                        "description": f"{username} post image",
+                    }
+                )
 
         logger.info(
             "instagram_profile_extracted",
@@ -424,9 +457,7 @@ class InstagramScraper(BaseModule):
 
         return followers, following, posts_count
 
-    async def _collect_posts(
-        self, page
-    ) -> tuple[list[dict[str, Any]], list[str], list[str]]:
+    async def _collect_posts(self, page) -> tuple[list[dict[str, Any]], list[str], list[str]]:
         """Collect post thumbnails and their URLs."""
         post_data: list[dict[str, Any]] = []
         image_urls: list[str] = []
@@ -545,7 +576,10 @@ class InstagramScraper(BaseModule):
         # 2. From discovered instagram profiles in previous modules
         for item in context.get("discovered_instagram_profiles", []) or []:
             if isinstance(item, dict):
-                add(item.get("username") or InstagramScraper._username_from_url(str(item.get("url", ""))))
+                add(
+                    item.get("username")
+                    or InstagramScraper._username_from_url(str(item.get("url", "")))
+                )
             elif isinstance(item, str):
                 add(InstagramScraper._username_from_url(item))
 
@@ -575,7 +609,9 @@ class InstagramScraper(BaseModule):
                 add(variant)
 
         # 6. Email local part
-        email_val = str(inputs.get("email") or (target if target_type == TargetType.EMAIL else "")).strip()
+        email_val = str(
+            inputs.get("email") or (target if target_type == TargetType.EMAIL else "")
+        ).strip()
         if email_val and "@" in email_val:
             local = email_val.split("@", 1)[0]
             add(local)
@@ -587,7 +623,9 @@ class InstagramScraper(BaseModule):
         work = str(inputs.get("work", "") or "").strip()
         if work:
             work_slug = re.sub(r"[^a-z0-9]", "", work.lower())[:10]
-            name_val = str(inputs.get("name", "") or (target if target_type == TargetType.PERSON else "")).strip()
+            name_val = str(
+                inputs.get("name", "") or (target if target_type == TargetType.PERSON else "")
+            ).strip()
             if name_val and work_slug:
                 name_tokens = [t for t in re.split(r"\s+", name_val.lower()) if t]
                 if name_tokens:
@@ -696,7 +734,9 @@ class InstagramScraper(BaseModule):
     @staticmethod
     def _parse_og_description(desc: str) -> tuple[int, int, int]:
         """Parse 'NNN Posts, NNN Followers, NNN Following' from og:description."""
-        counts = [InstagramScraper._parse_count(m) for m in re.findall(r"([\d,.]+\s*[KkMm]?)", desc)]
+        counts = [
+            InstagramScraper._parse_count(m) for m in re.findall(r"([\d,.]+\s*[KkMm]?)", desc)
+        ]
         if len(counts) >= 3:
             return counts[1], counts[2], counts[0]  # followers, following, posts
         return 0, 0, 0

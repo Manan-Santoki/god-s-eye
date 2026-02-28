@@ -13,9 +13,9 @@ Phase: FAST_API (1)
 
 from typing import Any
 
-from app.modules.base import BaseModule, ModuleMetadata, ModuleResult
 from app.core.constants import ModulePhase, TargetType
 from app.core.logging import get_logger
+from app.modules.base import BaseModule, ModuleMetadata, ModuleResult
 
 logger = get_logger(__name__)
 
@@ -37,6 +37,7 @@ class GeolocationModule(BaseModule):
 
     async def validate(self, target: str, target_type: TargetType, **kwargs: Any) -> bool:
         import re
+
         ip_re = re.compile(r"^\d{1,3}(\.\d{1,3}){3}$")
         domain_re = re.compile(r"^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z]{2,})+$")
         return bool(ip_re.match(target) or domain_re.match(target))
@@ -96,7 +97,9 @@ class GeolocationModule(BaseModule):
 
         # 2. IPinfo.io
         if not geo:
-            geo = await self._ipinfo_lookup(ip, settings.ipinfo_api_key.get_secret_value() if settings.ipinfo_api_key else None)
+            geo = await self._ipinfo_lookup(
+                ip, settings.ipinfo_api_key.get_secret_value() if settings.ipinfo_api_key else None
+            )
             if geo:
                 results["provider"] = "ipinfo"
                 results["geolocation"] = geo
@@ -150,11 +153,13 @@ class GeolocationModule(BaseModule):
     async def _resolve_domain(self, domain: str) -> str | None:
         """Resolve domain to IPv4 using asyncio DNS."""
         import asyncio
+
         try:
             loop = asyncio.get_event_loop()
             result = await loop.getaddrinfo(domain, None)
             for family, _, _, _, sockaddr in result:
                 import socket
+
                 if family == socket.AF_INET:
                     return sockaddr[0]
         except Exception as e:
@@ -164,17 +169,21 @@ class GeolocationModule(BaseModule):
     def _is_public_ip(self, ip: str) -> bool:
         """Check if IP is a public routable address."""
         import ipaddress
+
         try:
             addr = ipaddress.ip_address(ip)
-            return not (addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved)
+            return not (
+                addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_reserved
+            )
         except ValueError:
             return False
 
     async def _maxmind_lookup(self, ip: str) -> dict | None:
         """Look up IP using local MaxMind GeoLite2 database."""
         try:
-            import geoip2.database
             from pathlib import Path
+
+            import geoip2.database
 
             db_paths = [
                 Path("/usr/share/GeoIP/GeoLite2-City.mmdb"),
@@ -191,7 +200,9 @@ class GeolocationModule(BaseModule):
                 return {
                     "country": response.country.name,
                     "country_code": response.country.iso_code,
-                    "region": response.subdivisions.most_specific.name if response.subdivisions else None,
+                    "region": response.subdivisions.most_specific.name
+                    if response.subdivisions
+                    else None,
                     "city": response.city.name,
                     "postal": response.postal.code,
                     "latitude": float(response.location.latitude or 0),
@@ -208,6 +219,7 @@ class GeolocationModule(BaseModule):
     async def _ipinfo_lookup(self, ip: str, api_key: str | None) -> dict | None:
         """Look up IP using IPinfo.io API."""
         import aiohttp
+
         try:
             url = f"https://ipinfo.io/{ip}/json"
             headers = {}
@@ -215,7 +227,9 @@ class GeolocationModule(BaseModule):
                 headers["Authorization"] = f"Bearer {api_key}"
 
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+                async with session.get(
+                    url, headers=headers, timeout=aiohttp.ClientTimeout(total=10)
+                ) as resp:
                     if resp.status != 200:
                         return None
                     data = await resp.json()
@@ -252,6 +266,7 @@ class GeolocationModule(BaseModule):
     async def _ip_api_lookup(self, ip: str) -> dict | None:
         """Look up IP using ip-api.com (free, no key)."""
         import aiohttp
+
         try:
             fields = "status,country,countryCode,region,regionName,city,zip,lat,lon,timezone,isp,org,as,query"
             url = f"http://ip-api.com/json/{ip}?fields={fields}"
@@ -285,6 +300,7 @@ class GeolocationModule(BaseModule):
     async def _ipwhois_lookup(self, ip: str) -> dict | None:
         """Look up IP using ipwhois (pure Python, no API)."""
         import asyncio
+
         try:
             from ipwhois import IPWhois
 

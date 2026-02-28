@@ -62,9 +62,7 @@ class ModuleMetadata:
             target if isinstance(target, TargetType) else TargetType(target)
             for target in raw_targets
         ]
-        self.requires_auth = (
-            requires_auth if requires_auth is not None else bool(requires_api_key)
-        )
+        self.requires_auth = requires_auth if requires_auth is not None else bool(requires_api_key)
         self.requires_proxy = requires_proxy
         self.requires_browser = requires_browser
         self.rate_limit_rpm = (
@@ -85,8 +83,7 @@ class ModuleMetadata:
     @target_types.setter
     def target_types(self, value: list[TargetType | str]) -> None:
         self.supported_targets = [
-            target if isinstance(target, TargetType) else TargetType(target)
-            for target in value
+            target if isinstance(target, TargetType) else TargetType(target) for target in value
         ]
 
     @property
@@ -141,9 +138,7 @@ class ModuleResult:
         self.raw_responses = raw_responses or {}
         self.execution_time_ms = execution_time_ms
         self.findings_count = (
-            findings_count
-            if findings_count is not None
-            else self._infer_findings_count(self.data)
+            findings_count if findings_count is not None else self._infer_findings_count(self.data)
         )
 
     @classmethod
@@ -152,12 +147,12 @@ class ModuleResult:
         data: dict[str, Any],
         warnings: list[str] | None = None,
         **kwargs: Any,
-    ) -> "ModuleResult":
+    ) -> ModuleResult:
         """Construct a successful result."""
         return cls(success=True, data=data, warnings=warnings or [], **kwargs)
 
     @classmethod
-    def fail(cls, *errors: str, **kwargs: Any) -> "ModuleResult":
+    def fail(cls, *errors: str, **kwargs: Any) -> ModuleResult:
         """Construct a failed result."""
         return cls(success=False, errors=list(errors), **kwargs)
 
@@ -213,6 +208,7 @@ class BaseModule(abc.ABC):
     def __init_subclass__(cls, **kwargs: Any) -> None:
         """Wrap subclass run() methods so legacy call sites keep working."""
         super().__init_subclass__(**kwargs)
+
         def build_context(
             target: str,
             target_type: TargetType,
@@ -250,7 +246,9 @@ class BaseModule(abc.ABC):
         if run_method is not None and not getattr(run_method, "_god_eye_wrapped", False):
             run_signature = inspect.signature(run_method)
 
-            async def wrapped_run(self, target: str, target_type: TargetType, *args: Any, **kwargs: Any) -> ModuleResult:
+            async def wrapped_run(
+                self, target: str, target_type: TargetType, *args: Any, **kwargs: Any
+            ) -> ModuleResult:
                 context = build_context(
                     target=target,
                     target_type=target_type,
@@ -258,7 +256,11 @@ class BaseModule(abc.ABC):
                     target_inputs=kwargs.pop("target_inputs", None),
                 )
 
-                if "context" in run_signature.parameters and len(args) == 0 and "context" not in kwargs:
+                if (
+                    "context" in run_signature.parameters
+                    and len(args) == 0
+                    and "context" not in kwargs
+                ):
                     kwargs["context"] = context
 
                 result = await run_method(self, target, target_type, *args, **kwargs)
@@ -273,7 +275,7 @@ class BaseModule(abc.ABC):
                 return result
 
             wrapped_run._god_eye_wrapped = True  # type: ignore[attr-defined]
-            setattr(cls, "run", wrapped_run)
+            cls.run = wrapped_run
 
         validate_method = cls.__dict__.get("validate")
         if validate_method is not None and not getattr(validate_method, "_god_eye_wrapped", False):
@@ -293,13 +295,17 @@ class BaseModule(abc.ABC):
                     target_inputs=kwargs.pop("target_inputs", None),
                 )
 
-                if "context" in validate_signature.parameters and len(args) == 0 and "context" not in kwargs:
+                if (
+                    "context" in validate_signature.parameters
+                    and len(args) == 0
+                    and "context" not in kwargs
+                ):
                     kwargs["context"] = context
 
                 return await validate_method(self, target, target_type, *args, **kwargs)
 
             wrapped_validate._god_eye_wrapped = True  # type: ignore[attr-defined]
-            setattr(cls, "validate", wrapped_validate)
+            cls.validate = wrapped_validate
 
     @abc.abstractmethod
     def metadata(self) -> ModuleMetadata:
@@ -328,7 +334,7 @@ class BaseModule(abc.ABC):
 
     async def cleanup(self) -> None:
         """Optional: clean up resources after run() completes."""
-        pass
+        return None
 
     async def validate(self, target: str, target_type: TargetType, **kwargs: Any) -> bool:
         """Default validation hook for legacy modules/tests."""

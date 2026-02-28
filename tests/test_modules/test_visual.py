@@ -27,8 +27,8 @@ class TestAIVisionAnalyzer:
     """Tests for the AI vision analyzer module."""
 
     def test_metadata(self):
-        from app.modules.visual.ai_vision_analyzer import AIVisionAnalyzerModule
         from app.core.constants import ModulePhase
+        from app.modules.visual.ai_vision_analyzer import AIVisionAnalyzerModule
 
         m = AIVisionAnalyzerModule()
         meta = m.metadata()
@@ -61,15 +61,15 @@ class TestAIVisionAnalyzer:
         assert result["confidence"] == "low"
 
     def test_collect_images_from_context_screenshots_dir(self, tmp_path: Path):
-        from app.modules.visual.ai_vision_analyzer import AIVisionAnalyzerModule
         from unittest.mock import patch
+
+        from app.modules.visual.ai_vision_analyzer import AIVisionAnalyzerModule
 
         screenshots_dir = tmp_path / "screenshots"
         screenshots_dir.mkdir()
         (screenshots_dir / "snapshot_01_test.png").write_bytes(b"PNG_DATA")
 
         request_id = "req_test_123"
-        data_dir = tmp_path
 
         context = {
             "request_id": request_id,
@@ -162,8 +162,8 @@ class TestAIVisionAnalyzer:
 
     @pytest.mark.asyncio
     async def test_run_returns_gracefully_without_api_key(self, monkeypatch):
-        from app.modules.visual.ai_vision_analyzer import AIVisionAnalyzerModule
         from app.core.constants import TargetType
+        from app.modules.visual.ai_vision_analyzer import AIVisionAnalyzerModule
 
         monkeypatch.setenv("OPENROUTER_API_KEY", "")
         monkeypatch.setenv("ANTHROPIC_API_KEY", "")

@@ -122,14 +122,13 @@ class ShodanSearchModule(BaseModule):
 
             # ── Query each IP concurrently ───────────────────────────────────
             host_tasks = [
-                self._get_host_info(session, ip, api_key, warnings, errors)
-                for ip in ips_to_query
+                self._get_host_info(session, ip, api_key, warnings, errors) for ip in ips_to_query
             ]
             host_results = await asyncio.gather(*host_tasks, return_exceptions=True)
 
         # Collect successful host records
         all_hosts: list[dict[str, Any]] = []
-        for ip, result in zip(ips_to_query, host_results):
+        for ip, result in zip(ips_to_query, host_results, strict=False):
             if isinstance(result, Exception):
                 errors.append(f"Shodan host lookup failed for {ip}: {result}")
             elif result:
@@ -241,7 +240,7 @@ class ShodanSearchModule(BaseModule):
 
         # Shodan DNS resolve returns {domain: ip, ...}
         ips: list[str] = []
-        for hostname, ip in data.items():
+        for _hostname, ip in data.items():
             if ip and isinstance(ip, str):
                 ips.append(ip)
 
@@ -379,14 +378,18 @@ class ShodanSearchModule(BaseModule):
 
         # Collect CVEs from the banner-level vulns
         banner_vulns_raw = banner.get("vulns") or {}
-        banner_cves: list[str] = list(banner_vulns_raw.keys()) if isinstance(banner_vulns_raw, dict) else []
+        banner_cves: list[str] = (
+            list(banner_vulns_raw.keys()) if isinstance(banner_vulns_raw, dict) else []
+        )
 
         return {
             "port": int(port),
             "transport": transport,
             "product": product,
             "version": version,
-            "module": banner.get("_shodan", {}).get("module", "") if isinstance(banner.get("_shodan"), dict) else "",
+            "module": banner.get("_shodan", {}).get("module", "")
+            if isinstance(banner.get("_shodan"), dict)
+            else "",
             "banner": str(banner_data)[:500] if banner_data else "",
             "cpe": cpe,
             "cves": banner_cves,

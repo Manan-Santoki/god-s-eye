@@ -61,7 +61,7 @@ def _discover_modules() -> dict[str, Any]:
     seen_classes: set[type[Any]] = set()
     modules_dir = Path(__file__).parent
 
-    for finder, name, ispkg in pkgutil.walk_packages(
+    for _finder, name, _ispkg in pkgutil.walk_packages(
         path=[str(modules_dir)],
         prefix="app.modules.",
         onerror=lambda x: None,

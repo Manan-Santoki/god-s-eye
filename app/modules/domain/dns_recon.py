@@ -20,9 +20,7 @@ import dns.exception
 import dns.rdatatype
 import dns.resolver
 
-from app.core.config import settings
 from app.core.constants import ModulePhase, TargetType
-from app.core.exceptions import APIError, RateLimitError
 from app.core.logging import get_logger
 from app.modules.base import BaseModule, ModuleMetadata, ModuleResult
 
@@ -107,13 +105,11 @@ class DNSReconModule(BaseModule):
         }
 
         # Also query DMARC subdomain
-        tasks["DMARC"] = loop.run_in_executor(
-            None, self._query_record, f"_dmarc.{domain}", "TXT"
-        )
+        tasks["DMARC"] = loop.run_in_executor(None, self._query_record, f"_dmarc.{domain}", "TXT")
 
         results = await asyncio.gather(*tasks.values(), return_exceptions=True)
         record_map: dict[str, list[str]] = {}
-        for rtype, result in zip(tasks.keys(), results):
+        for rtype, result in zip(tasks.keys(), results, strict=False):
             if isinstance(result, Exception):
                 errors.append(f"{rtype} query failed: {result}")
                 record_map[rtype] = []
@@ -129,7 +125,7 @@ class DNSReconModule(BaseModule):
                 for ip in a_records[:5]  # Limit to 5 IPs
             ]
             ptr_results = await asyncio.gather(*ptr_tasks, return_exceptions=True)
-            for ip, ptr in zip(a_records[:5], ptr_results):
+            for ip, ptr in zip(a_records[:5], ptr_results, strict=False):
                 if not isinstance(ptr, Exception) and ptr:
                     ptr_records[ip] = ptr
 
@@ -147,9 +143,7 @@ class DNSReconModule(BaseModule):
         aaaa_records = record_map.get("AAAA", [])
 
         # Build full records dict (exclude internal DMARC key, add to TXT info)
-        final_records: dict[str, list[str]] = {
-            k: v for k, v in record_map.items() if k != "DMARC"
-        }
+        final_records: dict[str, list[str]] = {k: v for k, v in record_map.items() if k != "DMARC"}
         if dmarc_records:
             final_records["DMARC"] = dmarc_records
 
@@ -282,6 +276,6 @@ class DNSReconModule(BaseModule):
         # Strip http(s)://
         for scheme in ("https://", "http://"):
             if target.startswith(scheme):
-                target = target[len(scheme):]
+                target = target[len(scheme) :]
         # Strip path
         return target.split("/")[0].split("?")[0]

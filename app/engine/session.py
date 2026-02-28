@@ -9,7 +9,7 @@ the shared context dict passed between module phases.
 import hashlib
 import json
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -30,7 +30,7 @@ def generate_request_id(target: str) -> str:
 
     Example: req_20260120_143052_a1b2c3d4
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     date_part = now.strftime("%Y%m%d")
     time_part = now.strftime("%H%M%S")
     hash_part = hashlib.md5(target.encode()).hexdigest()[:8]
@@ -61,7 +61,7 @@ class ScanSession:
         self.target_inputs = target_inputs or {}
         self.request_id = request_id or generate_request_id(target)
         self.status = ScanStatus.PENDING
-        self.started_at = datetime.now(timezone.utc)
+        self.started_at = datetime.now(UTC)
         self.completed_at: datetime | None = None
         self._start_mono = time.monotonic()
 
@@ -169,7 +169,7 @@ class ScanSession:
     def complete(self) -> None:
         """Mark session as completed."""
         self.status = ScanStatus.COMPLETED
-        self.completed_at = datetime.now(timezone.utc)
+        self.completed_at = datetime.now(UTC)
         self.save_metadata()
         elapsed = int(time.monotonic() - self._start_mono)
         logger.info(
@@ -183,7 +183,7 @@ class ScanSession:
     def fail(self, reason: str) -> None:
         """Mark session as failed."""
         self.status = ScanStatus.FAILED
-        self.completed_at = datetime.now(timezone.utc)
+        self.completed_at = datetime.now(UTC)
         self.save_metadata()
         logger.error("scan_failed", request_id=self.request_id, reason=reason)
 

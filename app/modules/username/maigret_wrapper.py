@@ -12,14 +12,13 @@ Phase: FAST_API (1)
 
 import asyncio
 import json
-import subprocess
 import tempfile
 from pathlib import Path
 from typing import Any
 
-from app.modules.base import BaseModule, ModuleMetadata, ModuleResult
 from app.core.constants import ModulePhase, TargetType
 from app.core.logging import get_logger
+from app.modules.base import BaseModule, ModuleMetadata, ModuleResult
 
 logger = get_logger(__name__)
 
@@ -42,6 +41,7 @@ class MaigretWrapper(BaseModule):
     async def validate(self, target: str, target_type: TargetType, **kwargs: Any) -> bool:
         # Username: 2-50 chars, no spaces, basic chars only
         import re
+
         return bool(target and re.match(r"^[a-zA-Z0-9._\-]{2,50}$", target))
 
     async def run(
@@ -80,8 +80,6 @@ class MaigretWrapper(BaseModule):
 
     async def _run_library(self, username: str, results: dict) -> ModuleResult:
         """Use Maigret Python library directly."""
-        import maigret
-        from maigret.result import QueryStatus
 
         results["method"] = "library"
 
@@ -90,9 +88,12 @@ class MaigretWrapper(BaseModule):
 
         def _maigret_sync():
             import maigret.settings
-            sites_db = maigret.MaigretDatabase().load_from_path(
-                maigret.settings.MAIGRET_DB_FILE
-            ) if hasattr(maigret, "settings") else None
+
+            sites_db = (
+                maigret.MaigretDatabase().load_from_path(maigret.settings.MAIGRET_DB_FILE)
+                if hasattr(maigret, "settings")
+                else None
+            )
 
             # Use top 300 sites for speed; full run takes minutes
             result = maigret.search(
@@ -108,7 +109,7 @@ class MaigretWrapper(BaseModule):
                 loop.run_in_executor(None, _maigret_sync),
                 timeout=120,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning("maigret_library_timeout", username=username)
             raw = {}
 
@@ -117,11 +118,13 @@ class MaigretWrapper(BaseModule):
             status = getattr(site_result, "status", None)
             if status and str(status) in ("QueryStatus.CLAIMED", "CLAIMED"):
                 profile_url = getattr(site_result, "url_user", "")
-                profiles.append({
-                    "site": site_name,
-                    "url": profile_url,
-                    "username": username,
-                })
+                profiles.append(
+                    {
+                        "site": site_name,
+                        "url": profile_url,
+                        "username": username,
+                    }
+                )
 
         results["profiles"] = profiles
         results["sites_found"] = len(profiles)
@@ -161,7 +164,7 @@ class MaigretWrapper(BaseModule):
                     stderr=asyncio.subprocess.PIPE,
                 )
                 _, _ = await asyncio.wait_for(proc.communicate(), timeout=150)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning("maigret_subprocess_timeout", username=username)
 
             # Parse JSON output
@@ -173,17 +176,23 @@ class MaigretWrapper(BaseModule):
                 for site_name, site_data in data.items():
                     if isinstance(site_data, dict):
                         status = site_data.get("status", {})
-                        status_name = status.get("name", "") if isinstance(status, dict) else str(status)
+                        status_name = (
+                            status.get("name", "") if isinstance(status, dict) else str(status)
+                        )
                         if "CLAIMED" in status_name.upper():
-                            profiles.append({
-                                "site": site_name,
-                                "url": site_data.get("url_user", ""),
-                                "username": username,
-                                "extra": {
-                                    k: v for k, v in site_data.items()
-                                    if k not in ("status", "url_user") and isinstance(v, (str, int, bool))
-                                },
-                            })
+                            profiles.append(
+                                {
+                                    "site": site_name,
+                                    "url": site_data.get("url_user", ""),
+                                    "username": username,
+                                    "extra": {
+                                        k: v
+                                        for k, v in site_data.items()
+                                        if k not in ("status", "url_user")
+                                        and isinstance(v, (str, int, bool))
+                                    },
+                                }
+                            )
 
                 results["profiles"] = profiles
                 results["sites_found"] = len(profiles)

@@ -14,8 +14,8 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
-
 # ── Base ──────────────────────────────────────────────────────────
+
 
 class BaseEntity(BaseModel):
     """Base class for all GOD_EYE data entities."""
@@ -26,6 +26,7 @@ class BaseEntity(BaseModel):
 
 
 # ── Core Entities ─────────────────────────────────────────────────
+
 
 class PersonEntity(BaseEntity):
     """Central person entity — all other entities link to this."""
@@ -83,11 +84,11 @@ class UsernameEntity(BaseEntity):
 class PhoneEntity(BaseEntity):
     """Phone number entity with carrier and type information."""
 
-    number: str                          # E.164 format: +1234567890
+    number: str  # E.164 format: +1234567890
     country_code: str = ""
     country: str = ""
     carrier: str | None = None
-    line_type: str | None = None         # mobile | landline | voip | toll_free
+    line_type: str | None = None  # mobile | landline | voip | toll_free
     is_valid: bool = True
     is_voip: bool = False
 
@@ -137,7 +138,7 @@ class LocationEntity(BaseEntity):
     country: str | None = None
     country_code: str | None = None
     postal_code: str | None = None
-    source: str = "unknown"              # ip_geolocation | exif | social_profile | whois
+    source: str = "unknown"  # ip_geolocation | exif | social_profile | whois
     confidence: float = 1.0
 
 
@@ -166,7 +167,7 @@ class ImageEntity(BaseEntity):
 class BreachRecord(BaseEntity):
     """Data breach record from HIBP, DeHashed, or IntelX."""
 
-    source: str                          # hibp | dehashed | intelx
+    source: str  # hibp | dehashed | intelx
     name: str
     domain: str | None = None
     breach_date: str | None = None
@@ -217,6 +218,7 @@ class CompanyEntity(BaseEntity):
 
 # ── Scan Metadata ─────────────────────────────────────────────────
 
+
 class ScanMetadata(BaseModel):
     """Complete metadata for a scan session."""
 
@@ -239,11 +241,12 @@ class ScanMetadata(BaseModel):
 
 # ── Risk Assessment ───────────────────────────────────────────────
 
+
 class RiskAssessment(BaseModel):
     """Privacy risk assessment output from the AI risk scorer."""
 
     score: float = Field(ge=0.0, le=10.0)
-    level: str                           # low | medium | high | critical
+    level: str  # low | medium | high | critical
     breakdown: dict[str, float] = {}
     top_risks: list[str] = []
     recommendations: list[str] = []
@@ -251,11 +254,12 @@ class RiskAssessment(BaseModel):
 
 # ── Timeline ──────────────────────────────────────────────────────
 
+
 class TimelineEvent(BaseModel):
     """A single chronological event in the target's digital history."""
 
     timestamp: str
-    event_type: str                      # account_created | breach | post | location_seen
+    event_type: str  # account_created | breach | post | location_seen
     description: str
     platform: str | None = None
     source_module: str = ""
@@ -264,10 +268,11 @@ class TimelineEvent(BaseModel):
 
 # ── Correlation ───────────────────────────────────────────────────
 
+
 class CorrelationFinding(BaseModel):
     """A discovered connection between entities from different modules."""
 
-    connection_type: str                 # same_email | username_pattern | location_match
+    connection_type: str  # same_email | username_pattern | location_match
     entities: list[str]
     confidence: float = Field(ge=0.0, le=1.0)
     description: str

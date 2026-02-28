@@ -25,6 +25,7 @@ class GodEyeError(Exception):
 
 # ── Module Errors ─────────────────────────────────────────────────
 
+
 class ModuleError(GodEyeError):
     """A module failed during execution. Non-fatal — scan continues."""
 
@@ -34,6 +35,7 @@ class ModuleError(GodEyeError):
 
 
 # ── API Errors ────────────────────────────────────────────────────
+
 
 class APIError(GodEyeError):
     """An external API returned an unexpected error response."""
@@ -72,6 +74,7 @@ class AuthenticationError(APIError):
 
 # ── Browser Errors ────────────────────────────────────────────────
 
+
 class BrowserError(GodEyeError):
     """
     Browser automation failed.
@@ -106,6 +109,7 @@ class LoginError(BrowserError):
 
 # ── Data Errors ───────────────────────────────────────────────────
 
+
 class ValidationError(GodEyeError):
     """
     Input validation failed.
@@ -138,6 +142,7 @@ class DatabaseError(GodEyeError):
 
 # ── Configuration Errors ──────────────────────────────────────────
 
+
 class ConfigurationError(GodEyeError):
     """
     Invalid or missing configuration.
@@ -161,7 +166,4 @@ class MissingAPIKeyError(ConfigurationError):
     def __init__(self, api_name: str, env_var: str) -> None:
         self.api_name = api_name
         self.env_var = env_var
-        super().__init__(
-            env_var,
-            f"{api_name} API key not configured. Set {env_var} in .env"
-        )
+        super().__init__(env_var, f"{api_name} API key not configured. Set {env_var} in .env")

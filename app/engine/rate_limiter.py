@@ -12,8 +12,6 @@ Usage:
 
 import asyncio
 import time
-from collections import defaultdict
-from typing import Optional
 
 from app.core.logging import get_logger
 
@@ -141,7 +139,9 @@ class GlobalRateLimiter:
 
     def __init__(self, global_max_rps: int = 50) -> None:
         self._limiters: dict[str, TokenBucketLimiter] = {}
-        self._global_limiter = TokenBucketLimiter("global", rate_rpm=global_max_rps * 60, burst_size=global_max_rps * 2)
+        self._global_limiter = TokenBucketLimiter(
+            "global", rate_rpm=global_max_rps * 60, burst_size=global_max_rps * 2
+        )
 
     def get_limiter(self, name: str, rate_rpm: int = 60) -> TokenBucketLimiter:
         """
@@ -175,7 +175,7 @@ class GlobalRateLimiter:
 
     def get_all_stats(self) -> list[dict]:
         """Return stats for all registered limiters."""
-        return [l.get_stats() for l in self._limiters.values()]
+        return [limiter.get_stats() for limiter in self._limiters.values()]
 
 
 # ── Singleton ─────────────────────────────────────────────────────

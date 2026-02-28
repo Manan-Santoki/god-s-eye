@@ -60,9 +60,7 @@ class BingSearchModule(BaseModule):
                 "bing_search_skipped",
                 reason="BING_API_KEY not configured",
             )
-            return ModuleResult.fail(
-                "Bing Search not configured: set BING_API_KEY in .env"
-            )
+            return ModuleResult.fail("Bing Search not configured: set BING_API_KEY in .env")
 
         errors: list[str] = []
         warnings: list[str] = []

@@ -25,12 +25,20 @@ sys.path.insert(0, str(project_root))
 # ── Synthetic data pool ───────────────────────────────────────────────────────
 
 FAKE_NAMES = [
-    "Alice Johnson", "Bob Smith", "Carol Williams", "David Brown",
-    "Eve Davis", "Frank Wilson", "Grace Moore", "Henry Taylor",
+    "Alice Johnson",
+    "Bob Smith",
+    "Carol Williams",
+    "David Brown",
+    "Eve Davis",
+    "Frank Wilson",
+    "Grace Moore",
+    "Henry Taylor",
 ]
 FAKE_EMAILS = [
-    "alice.johnson@gmail.com", "bob.smith@outlook.com",
-    "carol.w@yahoo.com", "david.b@protonmail.com",
+    "alice.johnson@gmail.com",
+    "bob.smith@outlook.com",
+    "carol.w@yahoo.com",
+    "david.b@protonmail.com",
     "eve.davis@icloud.com",
 ]
 FAKE_USERNAMES = ["alice_j", "bobsmith", "carol_w", "davbrown", "evedavis"]
@@ -38,13 +46,28 @@ FAKE_DOMAINS = ["example.com", "testcorp.io", "demo-company.net"]
 FAKE_IPS = ["93.184.216.34", "8.8.8.8", "1.1.1.1", "104.21.50.100"]
 
 FAKE_PLATFORMS = [
-    "github", "twitter", "instagram", "linkedin", "reddit",
-    "youtube", "tiktok", "pinterest", "stackoverflow",
+    "github",
+    "twitter",
+    "instagram",
+    "linkedin",
+    "reddit",
+    "youtube",
+    "tiktok",
+    "pinterest",
+    "stackoverflow",
 ]
 
 FAKE_BREACH_NAMES = [
-    "LinkedIn", "Adobe", "RockYou2021", "Facebook", "Dropbox",
-    "MySpace", "Twitter", "LastFM", "Tumblr", "Yahoo",
+    "LinkedIn",
+    "Adobe",
+    "RockYou2021",
+    "Facebook",
+    "Dropbox",
+    "MySpace",
+    "Twitter",
+    "LastFM",
+    "Tumblr",
+    "Yahoo",
 ]
 
 
@@ -124,12 +147,16 @@ def make_username_results(username: str) -> dict:
                     "public_repos": random.randint(0, 100),
                     "followers": random.randint(0, 5000),
                     "bio": "Software developer and open source contributor",
-                } if "github" in platforms else None,
+                }
+                if "github" in platforms
+                else None,
                 "twitter": {
                     "found": "twitter" in platforms,
                     "url": f"https://twitter.com/{username}",
                     "followers": random.randint(10, 10000),
-                } if "twitter" in platforms else None,
+                }
+                if "twitter" in platforms
+                else None,
             },
         },
         "sherlock_wrapper": {
@@ -294,9 +321,7 @@ async def seed_scan(
         "completed_at": datetime.utcnow().isoformat(),
         "scan_duration_seconds": random.uniform(30, 300),
         "total_findings": sum(
-            r.get("findings_count", 0)
-            for r in module_results.values()
-            if isinstance(r, dict)
+            r.get("findings_count", 0) for r in module_results.values() if isinstance(r, dict)
         ),
         "modules_run": len(module_results),
         "modules_failed": 0,
@@ -315,6 +340,7 @@ async def seed_sqlite(request_ids: list[str], data_dir: Path) -> None:
     """Register seeded scans in the SQLite cache."""
     try:
         from app.database.sqlite_cache import SQLiteCache
+
         db_path = data_dir / "cache" / "god_eye.db"
         db_path.parent.mkdir(parents=True, exist_ok=True)
         cache = SQLiteCache(db_path=db_path)
@@ -338,6 +364,7 @@ async def main_async(args) -> None:
 
     if args.clear:
         import shutil
+
         requests_dir = data_dir / "requests"
         if requests_dir.exists():
             shutil.rmtree(requests_dir)
@@ -368,10 +395,10 @@ async def main_async(args) -> None:
     print()
     await seed_sqlite(request_ids, data_dir)
 
-    print(f"\nDone! View results:")
-    print(f"  god-eye list")
+    print("\nDone! View results:")
+    print("  god-eye list")
     print(f"  god-eye view {request_ids[0]}")
-    print(f"  uvicorn app.main:app --reload  # then visit /docs")
+    print("  uvicorn app.main:app --reload  # then visit /docs")
 
 
 def main():

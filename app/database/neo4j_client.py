@@ -16,7 +16,7 @@ Usage:
 from typing import Any
 from uuid import uuid4
 
-from neo4j import AsyncGraphDatabase, AsyncDriver, AsyncSession
+from neo4j import AsyncDriver, AsyncGraphDatabase, AsyncSession
 
 from app.core.config import settings
 from app.core.exceptions import DatabaseError
@@ -109,9 +109,7 @@ class Neo4jClient:
             record = await result.single()
         return record["id"] if record else node_id
 
-    async def create_email(
-        self, address: str, properties: dict[str, Any] | None = None
-    ) -> str:
+    async def create_email(self, address: str, properties: dict[str, Any] | None = None) -> str:
         """Create or merge an Email node. Returns the node ID."""
         node_id = str(uuid4())
         domain = address.split("@")[-1] if "@" in address else ""
@@ -153,9 +151,7 @@ class Neo4jClient:
             record = await result.single()
         return record["id"] if record else node_id
 
-    async def create_domain(
-        self, name: str, properties: dict[str, Any] | None = None
-    ) -> str:
+    async def create_domain(self, name: str, properties: dict[str, Any] | None = None) -> str:
         """Create or merge a Domain node."""
         node_id = str(uuid4())
         props = {"id": node_id, "name": name, **(properties or {})}
@@ -170,9 +166,7 @@ class Neo4jClient:
             record = await result.single()
         return record["id"] if record else node_id
 
-    async def create_ip(
-        self, address: str, properties: dict[str, Any] | None = None
-    ) -> str:
+    async def create_ip(self, address: str, properties: dict[str, Any] | None = None) -> str:
         """Create or merge an IP node."""
         node_id = str(uuid4())
         props = {"id": node_id, "address": address, **(properties or {})}
@@ -233,9 +227,7 @@ class Neo4jClient:
             record = await result.single()
         return record["id"] if record else node_id
 
-    async def create_breach(
-        self, name: str, properties: dict[str, Any] | None = None
-    ) -> str:
+    async def create_breach(self, name: str, properties: dict[str, Any] | None = None) -> str:
         """Create or merge a Breach node."""
         node_id = str(uuid4())
         props = {"id": node_id, "name": name, **(properties or {})}
@@ -249,9 +241,7 @@ class Neo4jClient:
             record = await result.single()
         return record["id"] if record else node_id
 
-    async def create_company(
-        self, name: str, properties: dict[str, Any] | None = None
-    ) -> str:
+    async def create_company(self, name: str, properties: dict[str, Any] | None = None) -> str:
         """Create or merge a Company node."""
         node_id = str(uuid4())
         props = {"id": node_id, "name": name, **(properties or {})}
@@ -290,13 +280,17 @@ class Neo4jClient:
         """
         try:
             async with self._session() as session:
-                result = await session.run(
-                    query, from_id=from_id, to_id=to_id, props=props
-                )
+                result = await session.run(query, from_id=from_id, to_id=to_id, props=props)
                 record = await result.single()
             return record is not None
         except Exception as e:
-            logger.error("link_nodes_failed", from_id=from_id, to_id=to_id, rel=relationship_type, error=str(e))
+            logger.error(
+                "link_nodes_failed",
+                from_id=from_id,
+                to_id=to_id,
+                rel=relationship_type,
+                error=str(e),
+            )
             return False
 
     async def update_node(self, node_id: str, properties: dict[str, Any]) -> bool:
@@ -313,9 +307,7 @@ class Neo4jClient:
 
     # ── Queries ──────────────────────────────────────────────────
 
-    async def query_target_graph(
-        self, target_name: str, depth: int = 3
-    ) -> dict[str, Any]:
+    async def query_target_graph(self, target_name: str, depth: int = 3) -> dict[str, Any]:
         """
         Query the full graph for a target up to given depth.
 
@@ -330,9 +322,7 @@ class Neo4jClient:
             records = await result.data()
         return {"target": target_name, "graph": records}
 
-    async def query_connections(
-        self, node_id: str, depth: int = 2
-    ) -> list[dict[str, Any]]:
+    async def query_connections(self, node_id: str, depth: int = 2) -> list[dict[str, Any]]:
         """Find all nodes connected to a given node within depth."""
         query = f"""
         MATCH (n {{id: $node_id}})-[r*1..{depth}]-(connected)

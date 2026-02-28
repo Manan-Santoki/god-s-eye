@@ -115,7 +115,9 @@ def extract_username_base(username: str) -> str:
     return base.strip("._-") or lower
 
 
-def deduplicate_profiles(profiles: list[dict[str, Any]], threshold: float = 0.7) -> list[dict[str, Any]]:
+def deduplicate_profiles(
+    profiles: list[dict[str, Any]], threshold: float = 0.7
+) -> list[dict[str, Any]]:
     """
     Deduplicate a list of profiles by merging similar entries.
 
@@ -133,7 +135,7 @@ def deduplicate_profiles(profiles: list[dict[str, Any]], threshold: float = 0.7)
             continue
         cluster = [profile]
         used.add(i)
-        for j, other in enumerate(profiles[i + 1:], start=i + 1):
+        for j, other in enumerate(profiles[i + 1 :], start=i + 1):
             if j in used:
                 continue
             if compute_similarity_score(profile, other) >= threshold:
@@ -164,6 +166,7 @@ def hash_file_stable(file_path: str, algorithm: str = "sha256") -> str:
 
 
 # ── Internal helpers ─────────────────────────────────────────────────────────
+
 
 def _normalize(target: str, target_type: str) -> str:
     """Normalize a target for consistent fingerprinting."""

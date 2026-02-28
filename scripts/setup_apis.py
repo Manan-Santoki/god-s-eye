@@ -6,7 +6,6 @@ Interactive guided setup that validates API keys and writes them to .env.
 Run: python scripts/setup_apis.py
 """
 
-import os
 import re
 import sys
 from pathlib import Path
@@ -19,10 +18,11 @@ sys.path.insert(0, str(project_root))
 def _try_rich():
     try:
         from rich.console import Console
-        from rich.table import Table
-        from rich.prompt import Prompt, Confirm
         from rich.panel import Panel
+        from rich.prompt import Confirm, Prompt
+        from rich.table import Table
         from rich.text import Text
+
         return Console(), Prompt, Confirm, Panel, Table, Text
     except ImportError:
         return None, None, None, None, None, None
@@ -33,11 +33,13 @@ console, Prompt, Confirm, Panel, Table, Text = _try_rich()
 
 def print_header():
     if console:
-        console.print(Panel.fit(
-            "[bold cyan]GOD_EYE API Key Setup[/bold cyan]\n"
-            "[dim]Interactive configuration wizard[/dim]",
-            border_style="cyan",
-        ))
+        console.print(
+            Panel.fit(
+                "[bold cyan]GOD_EYE API Key Setup[/bold cyan]\n"
+                "[dim]Interactive configuration wizard[/dim]",
+                border_style="cyan",
+            )
+        )
     else:
         print("\n=== GOD_EYE API Key Setup ===\n")
 
@@ -369,7 +371,9 @@ def setup_apis() -> dict[str, str]:
                     print_success(f"{api['name']}: key saved")
                     break
                 else:
-                    print_warning(f"Key format looks incorrect for {api['name']}. Try again or press Enter to skip.")
+                    print_warning(
+                        f"Key format looks incorrect for {api['name']}. Try again or press Enter to skip."
+                    )
 
     return env_values
 
@@ -409,6 +413,7 @@ def test_connections(values: dict[str, str]) -> None:
         if "HIBP_API_KEY" in values:
             try:
                 import aiohttp
+
                 headers = {"hibp-api-key": values["HIBP_API_KEY"], "user-agent": "god-eye-setup"}
                 async with aiohttp.ClientSession() as session:
                     async with session.get(
@@ -426,6 +431,7 @@ def test_connections(values: dict[str, str]) -> None:
         if "GITHUB_TOKEN" in values:
             try:
                 import aiohttp
+
                 headers = {
                     "Authorization": f"token {values['GITHUB_TOKEN']}",
                     "User-Agent": "god-eye-setup",
@@ -463,6 +469,7 @@ def main():
     # Backup existing .env
     if env_file.exists():
         import shutil
+
         shutil.copy2(env_file, backup_file)
         print_success(f"Backed up existing .env to {backup_file}")
 

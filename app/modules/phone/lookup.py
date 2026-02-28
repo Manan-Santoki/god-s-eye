@@ -245,14 +245,13 @@ class PhoneLookupModule(BaseModule):
         """
         # URL-encode the phone number (handle + prefix)
         from urllib.parse import quote
+
         encoded_phone = quote(phone, safe="")
         url = f"{_TWILIO_LOOKUP_BASE}/{encoded_phone}"
         params = {"Type": "carrier"}
 
         # Build Basic Auth header
-        credentials = base64.b64encode(
-            f"{account_sid}:{auth_token}".encode("utf-8")
-        ).decode("ascii")
+        credentials = base64.b64encode(f"{account_sid}:{auth_token}".encode()).decode("ascii")
         auth_headers = {
             "Authorization": f"Basic {credentials}",
             "User-Agent": "god_eye/1.0",
@@ -270,7 +269,7 @@ class PhoneLookupModule(BaseModule):
                 "international_format": data.get("phone_number"),
                 "country_prefix": None,
                 "country_code": data.get("country_code"),
-                "country": data.get("country_code"),   # Twilio only returns country code
+                "country": data.get("country_code"),  # Twilio only returns country code
                 "location": None,
                 "carrier": carrier_info.get("name"),
                 "line_type": self._normalise_line_type(line_type),
@@ -281,7 +280,10 @@ class PhoneLookupModule(BaseModule):
             return result, None
 
         except AuthenticationError:
-            return None, "Twilio authentication failed — check TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN"
+            return (
+                None,
+                "Twilio authentication failed — check TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN",
+            )
         except RateLimitError:
             return None, "Twilio rate limited"
         except APIError as exc:

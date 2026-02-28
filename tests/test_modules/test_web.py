@@ -16,12 +16,15 @@ class TestBaseModuleValidateCompatibility:
         from app.modules.social.youtube_api import YouTubeAPI
 
         module = YouTubeAPI()
-        assert await module.validate(
-            "john.doe@example.com",
-            TargetType.EMAIL,
-            context={"module_results": {}},
-            target_inputs={"email": "john.doe@example.com"},
-        ) is True
+        assert (
+            await module.validate(
+                "john.doe@example.com",
+                TargetType.EMAIL,
+                context={"module_results": {}},
+                target_inputs={"email": "john.doe@example.com"},
+            )
+            is True
+        )
 
 
 class TestSerpAPISearchModule:
@@ -115,7 +118,9 @@ class TestSerpAPISearchModule:
         assert result.data["query_reports"][0]["error_status"] == 403
 
     @pytest.mark.asyncio
-    async def test_serpapi_parses_inline_images_and_metadata(self, monkeypatch, mock_aiohttp_response):
+    async def test_serpapi_parses_inline_images_and_metadata(
+        self, monkeypatch, mock_aiohttp_response
+    ):
         monkeypatch.setenv("SERPAPI_API_KEY", "test-key")
         monkeypatch.setenv("SERPAPI_LOCATION", "Austin, Texas, United States")
 
@@ -204,7 +209,9 @@ class TestSerpAPISearchModule:
 
 class TestCrawl4AIModule:
     @pytest.mark.asyncio
-    async def test_collects_search_urls_and_normalizes_response(self, monkeypatch, mock_aiohttp_response, tmp_path: Path):
+    async def test_collects_search_urls_and_normalizes_response(
+        self, monkeypatch, mock_aiohttp_response, tmp_path: Path
+    ):
         monkeypatch.setenv("CRAWL4AI_BASE_URL", "https://crawl4ai.example.com")
 
         from app.modules.web.crawl4ai_crawler import Crawl4AICrawlerModule
@@ -237,7 +244,7 @@ class TestCrawl4AIModule:
                     ],
                     "dork_results": {},
                 }
-            }
+            },
         }
 
         with patch("aiohttp.ClientSession.post", return_value=mock_resp):
@@ -384,16 +391,19 @@ class TestWebSnapshotModule:
                         "url": "https://example.com/profile",
                         "title": "Example Profile",
                         "success": True,
-                        "markdown": "Profile content"
+                        "markdown": "Profile content",
                     }
                 ]
             },
             status=200,
         )
 
-        with patch.object(module, "_get_source_names", return_value=["google_cse"]), patch(
-            "aiohttp.ClientSession.post",
-            return_value=mock_resp,
+        with (
+            patch.object(module, "_get_source_names", return_value=["google_cse"]),
+            patch(
+                "aiohttp.ClientSession.post",
+                return_value=mock_resp,
+            ),
         ):
             result = await module.run(
                 "john doe",

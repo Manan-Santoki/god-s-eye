@@ -106,6 +106,7 @@ def normalize_email(email: str) -> str:
 def normalize_phone(phone: str) -> str:
     """Normalize phone number by removing spaces, dashes, dots."""
     import re
+
     # Keep only digits and leading +
     digits = re.sub(r"[^\d+]", "", phone.strip())
     return digits
@@ -114,6 +115,6 @@ def normalize_phone(phone: str) -> str:
 def sanitize_target(target: str, max_len: int = 256) -> str:
     """Sanitize a target string to prevent injection attacks."""
     # Remove shell metacharacters
-    dangerous = set(';&|<>`$(){}[]\\"\'\n\r\t\x00')
+    dangerous = set(";&|<>`$(){}[]\\\"'\n\r\t\x00")
     cleaned = "".join(c for c in target if c not in dangerous)
     return cleaned[:max_len].strip()

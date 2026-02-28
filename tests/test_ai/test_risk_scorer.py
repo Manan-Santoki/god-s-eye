@@ -2,8 +2,6 @@
 Tests for the AI risk scoring module.
 """
 
-import pytest
-
 
 class TestRiskScorer:
     """Tests for app.ai.risk_scorer.RiskScorer"""
@@ -73,15 +71,17 @@ class TestRiskScorer:
         score_minimal, _, _ = scorer.compute({})
 
         # Many platforms found
-        score_high, _, _ = scorer.compute({
-            "social_checker": {
-                "success": True,
-                "data": {
-                    "platforms": ["github", "twitter", "instagram", "linkedin", "reddit"],
-                    "platform_count": 5,
+        score_high, _, _ = scorer.compute(
+            {
+                "social_checker": {
+                    "success": True,
+                    "data": {
+                        "platforms": ["github", "twitter", "instagram", "linkedin", "reddit"],
+                        "platform_count": 5,
+                    },
                 },
-            },
-        })
+            }
+        )
 
         assert score_high >= score_minimal
 
@@ -91,12 +91,17 @@ class TestRiskScorer:
         scorer = RiskScorer()
 
         score_no_gps, _, _ = scorer.compute({})
-        score_with_gps, _, _ = scorer.compute({
-            "exif_extractor": {
-                "success": True,
-                "data": {"images_with_gps": 3, "gps_coordinates": [{"lat": 37.7, "lon": -122.4}]},
-            },
-        })
+        score_with_gps, _, _ = scorer.compute(
+            {
+                "exif_extractor": {
+                    "success": True,
+                    "data": {
+                        "images_with_gps": 3,
+                        "gps_coordinates": [{"lat": 37.7, "lon": -122.4}],
+                    },
+                },
+            }
+        )
 
         assert score_with_gps >= score_no_gps
 
@@ -124,10 +129,12 @@ class TestCorrelationEngine:
         from app.ai.correlation_engine import CorrelationEngine
 
         engine = CorrelationEngine()
-        findings = engine.correlate({
-            "email_validator": {"data": {"email": "johndoe@example.com"}},
-            "social_checker": {"data": {"github": {"login": "johndoe"}}},
-        })
+        findings = engine.correlate(
+            {
+                "email_validator": {"data": {"email": "johndoe@example.com"}},
+                "social_checker": {"data": {"github": {"login": "johndoe"}}},
+            }
+        )
 
         assert isinstance(findings, list)
 
@@ -182,9 +189,7 @@ class TestTimelineBuilder:
         builder = TimelineBuilder()
         module_results = {
             "hibp_breach_checker": {
-                "data": {
-                    "breaches": [{"Name": "TestBreach", "BreachDate": "2020-01-01"}]
-                }
+                "data": {"breaches": [{"Name": "TestBreach", "BreachDate": "2020-01-01"}]}
             }
         }
 

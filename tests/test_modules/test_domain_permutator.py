@@ -18,11 +18,11 @@ class TestDomainPermutatorModule:
             {"target_inputs": {"name": "Roshni Joshi"}},
         )
 
-        assert "roshnijoshi" in labels      # full concat
-        assert "rjoshi" in labels           # first initial + last
-        assert "roshni-joshi" in labels     # hyphen variant
+        assert "roshnijoshi" in labels  # full concat
+        assert "rjoshi" in labels  # first initial + last
+        assert "roshni-joshi" in labels  # hyphen variant
         assert "joshniroshi" not in labels  # reversed would be "joshiroshni" — not expected
-        assert "roshnij" in labels          # first + last initial
+        assert "roshnij" in labels  # first + last initial
 
     def test_build_labels_from_name_and_email(self):
         from app.modules.domain.permutator import DomainPermutatorModule

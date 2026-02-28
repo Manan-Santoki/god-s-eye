@@ -11,10 +11,8 @@ No API key required.
 
 from __future__ import annotations
 
-import asyncio
 import re
 from typing import Any
-from urllib.parse import quote
 
 import aiohttp
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
@@ -30,9 +28,7 @@ logger = get_logger(__name__)
 _CRTSH_URL = "https://crt.sh/"
 
 # Pattern to validate and normalise discovered subdomain hostnames
-_HOSTNAME_RE = re.compile(
-    r"^(\*\.)?([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$"
-)
+_HOSTNAME_RE = re.compile(r"^(\*\.)?([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$")
 
 
 class CertificateSearchModule(BaseModule):
@@ -247,11 +243,7 @@ class CertificateSearchModule(BaseModule):
 
         # Filter subdomains to only include those belonging to the target domain
         target_subdomains = sorted(
-            {
-                sub
-                for sub in all_subdomains
-                if sub == domain or sub.endswith(f".{domain}")
-            }
+            {sub for sub in all_subdomains if sub == domain or sub.endswith(f".{domain}")}
         )
 
         return certificates, target_subdomains
@@ -269,5 +261,5 @@ class CertificateSearchModule(BaseModule):
             return target.split("@", 1)[1]
         for scheme in ("https://", "http://"):
             if target.startswith(scheme):
-                target = target[len(scheme):]
+                target = target[len(scheme) :]
         return target.split("/")[0].split("?")[0]

@@ -19,7 +19,6 @@ from __future__ import annotations
 import asyncio
 import time
 from typing import Any
-from urllib.parse import quote_plus
 
 import aiohttp
 from tenacity import (
@@ -31,13 +30,14 @@ from tenacity import (
 
 try:
     from bs4 import BeautifulSoup
+
     _BS4_AVAILABLE = True
 except ImportError:
     _BS4_AVAILABLE = False
 
 from app.core.config import settings
 from app.core.constants import ModulePhase, TargetType
-from app.core.exceptions import APIError, RateLimitError
+from app.core.exceptions import RateLimitError
 from app.core.logging import get_logger
 from app.modules.base import BaseModule, ModuleMetadata, ModuleResult
 
@@ -122,8 +122,7 @@ class PasteMonitorModule(BaseModule):
         ) as session:
             # Run DuckDuckGo site: queries in parallel for each paste site
             ddg_tasks = [
-                self._search_ddg(session, term, site, warnings, errors)
-                for site in _PASTE_SITES
+                self._search_ddg(session, term, site, warnings, errors) for site in _PASTE_SITES
             ]
             # Also run Pastebin direct search concurrently
             pastebin_task = self._search_pastebin_direct(session, term, warnings, errors)
@@ -206,14 +205,12 @@ class PasteMonitorModule(BaseModule):
                 if resp.status == 429:
                     raise RateLimitError("DuckDuckGo")
                 if resp.status != 200:
-                    warnings.append(
-                        f"DuckDuckGo returned HTTP {resp.status} for {site} search"
-                    )
+                    warnings.append(f"DuckDuckGo returned HTTP {resp.status} for {site} search")
                     return []
                 html = await resp.text()
         except RateLimitError:
             raise
-        except asyncio.TimeoutError:
+        except TimeoutError:
             warnings.append(f"DuckDuckGo search timed out for site:{site}")
             return []
         except Exception as exc:
@@ -250,7 +247,8 @@ class PasteMonitorModule(BaseModule):
                         url = str(link["href"])
                         # DuckDuckGo sometimes wraps URLs in redirects
                         if "duckduckgo.com" in url and "uddg=" in url:
-                            from urllib.parse import urlparse, parse_qs
+                            from urllib.parse import parse_qs, urlparse
+
                             parsed = urlparse(url)
                             qs = parse_qs(parsed.query)
                             url = qs.get("uddg", [url])[0]
@@ -274,14 +272,16 @@ class PasteMonitorModule(BaseModule):
                     if snippet_tag:
                         preview = snippet_tag.get_text(strip=True)[:300]
 
-                pastes.append({
-                    "url": url,
-                    "title": title or url,
-                    "date": "",  # DuckDuckGo results rarely include dates
-                    "preview": preview,
-                    "source": site,
-                    "method": "duckduckgo",
-                })
+                pastes.append(
+                    {
+                        "url": url,
+                        "title": title or url,
+                        "date": "",  # DuckDuckGo results rarely include dates
+                        "preview": preview,
+                        "source": site,
+                        "method": "duckduckgo",
+                    }
+                )
         except Exception as exc:
             logger.warning("ddg_parse_error", site=site, error=str(exc))
 
@@ -311,12 +311,10 @@ class PasteMonitorModule(BaseModule):
                     warnings.append("Pastebin direct search rate limited")
                     return []
                 if resp.status != 200:
-                    warnings.append(
-                        f"Pastebin direct search returned HTTP {resp.status}"
-                    )
+                    warnings.append(f"Pastebin direct search returned HTTP {resp.status}")
                     return []
                 html = await resp.text()
-        except asyncio.TimeoutError:
+        except TimeoutError:
             warnings.append("Pastebin direct search timed out")
             return []
         except Exception as exc:
@@ -363,21 +361,20 @@ class PasteMonitorModule(BaseModule):
 
                 # Attempt to extract preview
                 preview = ""
-                preview_tag = (
-                    container.find("p")
-                    or container.find("div", class_="paste-content")
-                )
+                preview_tag = container.find("p") or container.find("div", class_="paste-content")
                 if preview_tag:
                     preview = preview_tag.get_text(strip=True)[:300]
 
-                pastes.append({
-                    "url": href,
-                    "title": title or href,
-                    "date": date,
-                    "preview": preview,
-                    "source": "pastebin.com",
-                    "method": "pastebin_direct",
-                })
+                pastes.append(
+                    {
+                        "url": href,
+                        "title": title or href,
+                        "date": date,
+                        "preview": preview,
+                        "source": "pastebin.com",
+                        "method": "pastebin_direct",
+                    }
+                )
 
         except Exception as exc:
             logger.warning("pastebin_parse_error", error=str(exc))

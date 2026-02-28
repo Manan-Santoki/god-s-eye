@@ -19,7 +19,6 @@ import aiohttp
 
 from app.core.config import settings
 from app.core.constants import ModulePhase, TargetType
-from app.core.exceptions import APIError, AuthenticationError, RateLimitError
 from app.core.logging import get_logger
 from app.modules.base import BaseModule, ModuleMetadata, ModuleResult
 
@@ -158,7 +157,7 @@ class SocialCheckerModule(BaseModule):
                     return None
                 data = await resp.json()
                 return self._parse_github_profile(data)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             warnings.append("GitHub check timed out")
             return None
         except Exception as exc:
@@ -215,7 +214,9 @@ class SocialCheckerModule(BaseModule):
                     return None
                 if resp.status == 403:
                     # Subreddit/account banned or private
-                    warnings.append(f"Reddit: access forbidden for user '{username}' (may be banned/suspended)")
+                    warnings.append(
+                        f"Reddit: access forbidden for user '{username}' (may be banned/suspended)"
+                    )
                     return None
                 if resp.status != 200:
                     body = await resp.text()
@@ -224,7 +225,7 @@ class SocialCheckerModule(BaseModule):
                 payload = await resp.json()
                 data = payload.get("data", {})
                 return self._parse_reddit_profile(data)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             warnings.append("Reddit check timed out")
             return None
         except Exception as exc:
@@ -306,7 +307,7 @@ class SocialCheckerModule(BaseModule):
                     return None
                 data = payload.get("data", {})
                 return self._parse_twitter_profile(data)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             warnings.append("Twitter check timed out")
             return None
         except Exception as exc:

@@ -32,17 +32,40 @@ _ABUSEIPDB_URL = "https://api.abuseipdb.com/api/v2/check"
 _VIRUSTOTAL_URL = "https://www.virustotal.com/api/v3/ip_addresses/{ip}"
 
 # Usage type keywords that suggest a VPN/proxy/hosting service
-_VPN_USAGE_TYPES = frozenset({
-    "vpn", "proxy", "hosting", "data center", "datacenter", "cdn",
-    "tor exit node", "anonymizer",
-})
+_VPN_USAGE_TYPES = frozenset(
+    {
+        "vpn",
+        "proxy",
+        "hosting",
+        "data center",
+        "datacenter",
+        "cdn",
+        "tor exit node",
+        "anonymizer",
+    }
+)
 
 # Autonomous System Number prefixes that are known for VPN/hosting
-_HOSTING_ASN_KEYWORDS = frozenset({
-    "digitalocean", "linode", "vultr", "hetzner", "ovh", "aws",
-    "google cloud", "azure", "cloudflare", "fastly", "akamai",
-    "leaseweb", "choopa", "as-choopa", "tzulo", "m247",
-})
+_HOSTING_ASN_KEYWORDS = frozenset(
+    {
+        "digitalocean",
+        "linode",
+        "vultr",
+        "hetzner",
+        "ovh",
+        "aws",
+        "google cloud",
+        "azure",
+        "cloudflare",
+        "fastly",
+        "akamai",
+        "leaseweb",
+        "choopa",
+        "as-choopa",
+        "tzulo",
+        "m247",
+    }
+)
 
 
 class IPLookupModule(BaseModule):
@@ -141,7 +164,9 @@ class IPLookupModule(BaseModule):
             vt_task = self._fetch_virustotal(session, ip, virustotal_key, errors, warnings)
 
             ipinfo_data, abuse_data, vt_data = await asyncio.gather(
-                ipinfo_task, abuse_task, vt_task,
+                ipinfo_task,
+                abuse_task,
+                vt_task,
                 return_exceptions=True,
             )
 
@@ -190,7 +215,7 @@ class IPLookupModule(BaseModule):
     def _resolve_domain_ips_sync(domain: str) -> list[str]:
         found: list[str] = []
         try:
-            for family, _, _, _, sockaddr in socket.getaddrinfo(domain, None):
+            for _family, _, _, _, sockaddr in socket.getaddrinfo(domain, None):
                 ip = sockaddr[0]
                 if ip not in found:
                     found.append(ip)
@@ -431,19 +456,9 @@ class IPLookupModule(BaseModule):
         are not available.
         """
         # Prefer AbuseIPDB country (alpha-2) over IPinfo
-        country = (
-            abuse.get("country_code")
-            or ipinfo.get("country")
-            or vt.get("country")
-            or ""
-        )
+        country = abuse.get("country_code") or ipinfo.get("country") or vt.get("country") or ""
 
-        isp = (
-            abuse.get("isp")
-            or ipinfo.get("org")
-            or vt.get("as_owner")
-            or ""
-        )
+        isp = abuse.get("isp") or ipinfo.get("org") or vt.get("as_owner") or ""
         asn = ipinfo.get("asn") or ""
 
         usage_type = abuse.get("usage_type") or ""

@@ -36,6 +36,7 @@ def try_rich():
         from rich.console import Console
         from rich.table import Table
         from rich.text import Text
+
         return Console(), Table, Text
     except ImportError:
         return None, None, None
@@ -90,20 +91,24 @@ async def check_python_dependencies() -> list[dict]:
         try:
             mod = __import__(import_name)
             version = getattr(mod, "__version__", "installed")
-            results.append({
-                "name": f"pkg:{pkg_name}",
-                "status": "ok",
-                "detail": version,
-                "optional": is_optional,
-            })
+            results.append(
+                {
+                    "name": f"pkg:{pkg_name}",
+                    "status": "ok",
+                    "detail": version,
+                    "optional": is_optional,
+                }
+            )
         except ImportError:
-            results.append({
-                "name": f"pkg:{pkg_name}",
-                "status": "warn" if is_optional else "fail",
-                "detail": "not installed",
-                "optional": is_optional,
-                "fix": f"pip install {pkg_name}",
-            })
+            results.append(
+                {
+                    "name": f"pkg:{pkg_name}",
+                    "status": "warn" if is_optional else "fail",
+                    "detail": "not installed",
+                    "optional": is_optional,
+                    "fix": f"pip install {pkg_name}",
+                }
+            )
 
     return results
 
@@ -111,6 +116,7 @@ async def check_python_dependencies() -> list[dict]:
 async def check_neo4j() -> dict:
     try:
         from app.database.neo4j_client import Neo4jClient
+
         client = Neo4jClient()
         await client.connect()
         healthy = await client.health_check()
@@ -128,6 +134,7 @@ async def check_neo4j() -> dict:
 async def check_redis() -> dict:
     try:
         from app.database.redis_client import RedisClient
+
         redis = RedisClient()
         await redis.connect()
         healthy = await redis.health_check()
@@ -144,9 +151,10 @@ async def check_redis() -> dict:
 
 async def check_sqlite() -> dict:
     try:
-        from app.database.sqlite_cache import SQLiteCache
-        from pathlib import Path
         import tempfile
+        from pathlib import Path
+
+        from app.database.sqlite_cache import SQLiteCache
 
         with tempfile.TemporaryDirectory() as tmp:
             cache = SQLiteCache(db_path=Path(tmp) / "test.db")
@@ -187,12 +195,16 @@ async def check_data_dirs() -> list[dict]:
     for d in dirs:
         exists = d.exists()
         writable = exists and os.access(d, os.W_OK)
-        results.append({
-            "name": f"dir:{d.relative_to(project_root)}",
-            "status": "ok" if (exists and writable) else ("warn" if exists else "fail"),
-            "detail": "ok" if (exists and writable) else ("not writable" if exists else "missing"),
-            "fix": f"mkdir -p {d}" if not exists else f"chmod 755 {d}",
-        })
+        results.append(
+            {
+                "name": f"dir:{d.relative_to(project_root)}",
+                "status": "ok" if (exists and writable) else ("warn" if exists else "fail"),
+                "detail": "ok"
+                if (exists and writable)
+                else ("not writable" if exists else "missing"),
+                "fix": f"mkdir -p {d}" if not exists else f"chmod 755 {d}",
+            }
+        )
     return results
 
 
@@ -207,12 +219,16 @@ async def check_templates() -> dict:
             "detail": f"missing: {', '.join(missing)}",
             "fix": "Templates should be in data/templates/",
         }
-    return {"name": "Jinja2 templates", "status": "ok", "detail": f"{len(required)} templates present"}
+    return {
+        "name": "Jinja2 templates",
+        "status": "ok",
+        "detail": f"{len(required)} templates present",
+    }
 
 
 async def check_playwright() -> dict:
     try:
-        result = subprocess.run(
+        subprocess.run(
             ["python", "-m", "playwright", "install", "--dry-run"],
             capture_output=True,
             text=True,
@@ -271,13 +287,15 @@ async def check_api_keys() -> list[dict]:
     for env_var, (display_name, required) in api_keys.items():
         value = env_values.get(env_var) or os.environ.get(env_var, "")
         configured = bool(value and len(value) > 5)
-        results.append({
-            "name": f"api:{display_name}",
-            "status": "ok" if configured else ("warn" if not required else "fail"),
-            "detail": "configured" if configured else "not set",
-            "optional": not required,
-            "fix": f"python scripts/setup_apis.py" if not configured else None,
-        })
+        results.append(
+            {
+                "name": f"api:{display_name}",
+                "status": "ok" if configured else ("warn" if not required else "fail"),
+                "detail": "configured" if configured else "not set",
+                "optional": not required,
+                "fix": "python scripts/setup_apis.py" if not configured else None,
+            }
+        )
 
     return results
 
@@ -285,6 +303,7 @@ async def check_api_keys() -> list[dict]:
 async def check_modules() -> dict:
     try:
         from app.modules import get_registry
+
         registry = get_registry()
         count = len(registry)
         return {
@@ -316,7 +335,11 @@ def print_table(checks: list[dict], quiet: bool = False) -> int:
             if quiet and check["status"] == "ok":
                 continue
             status = check["status"]
-            icon = {"ok": "[green]✓ ok[/green]", "warn": "[yellow]⚠ warn[/yellow]", "fail": "[red]✗ fail[/red]"}.get(status, status)
+            icon = {
+                "ok": "[green]✓ ok[/green]",
+                "warn": "[yellow]⚠ warn[/yellow]",
+                "fail": "[red]✗ fail[/red]",
+            }.get(status, status)
             table.add_row(
                 check["name"],
                 icon,
@@ -337,7 +360,9 @@ def print_table(checks: list[dict], quiet: bool = False) -> int:
             status = check["status"].upper()
             fix = f" → {check['fix']}" if check.get("fix") else ""
             print(f"[{status}] {check['name']}: {check.get('detail', '')}{fix}")
-        print(f"\nPassed: {len(checks)-len(failures)-len(warnings)} | Warnings: {len(warnings)} | Failures: {len(failures)}")
+        print(
+            f"\nPassed: {len(checks) - len(failures) - len(warnings)} | Warnings: {len(warnings)} | Failures: {len(failures)}"
+        )
 
     return 1 if failures else 0
 

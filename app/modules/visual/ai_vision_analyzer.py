@@ -108,7 +108,9 @@ class AIVisionAnalyzerModule(BaseModule):
             return ModuleResult(
                 success=False,
                 data={"analyses": [], "total_images": 0},
-                errors=["No vision-capable API key configured (OPENROUTER_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY)"],
+                errors=[
+                    "No vision-capable API key configured (OPENROUTER_API_KEY, ANTHROPIC_API_KEY, or OPENAI_API_KEY)"
+                ],
             )
 
         images = self._collect_images(context)
@@ -119,7 +121,9 @@ class AIVisionAnalyzerModule(BaseModule):
                 warnings=["No screenshots or images found in scan context for analysis"],
             )
 
-        max_images = max(1, int(get_module_setting("visual", "ai_vision_analyzer", "max_images", 10) or 10))
+        max_images = max(
+            1, int(get_module_setting("visual", "ai_vision_analyzer", "max_images", 10) or 10)
+        )
         selected = images[:max_images]
 
         start = time.monotonic()
@@ -131,9 +135,11 @@ class AIVisionAnalyzerModule(BaseModule):
         tasks = [self._analyze_image(api_key, item, semaphore) for item in selected]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
-        for item, result in zip(selected, results):
+        for item, result in zip(selected, results, strict=False):
             if isinstance(result, Exception):
-                errors.append(f"Vision analysis failed for {item.get('url', item.get('path', '?'))}: {result}")
+                errors.append(
+                    f"Vision analysis failed for {item.get('url', item.get('path', '?'))}: {result}"
+                )
             elif result is not None:
                 analyses.append(result)
 
@@ -222,33 +228,39 @@ class AIVisionAnalyzerModule(BaseModule):
 
         # Screenshots from web_snapshot
         web_snap = module_results.get("web_snapshot", {})
-        for shot in (web_snap.get("screenshots") or []):
+        for shot in web_snap.get("screenshots") or []:
             if isinstance(shot, dict):
                 add_path(shot.get("screenshot_path", ""), "web_snapshot", shot.get("url", ""))
 
         # Screenshots from linkedin_scraper
         li = module_results.get("linkedin_scraper", {})
-        for shot in (li.get("screenshots") or []):
+        for shot in li.get("screenshots") or []:
             if isinstance(shot, dict):
-                add_path(shot.get("path", "") or shot.get("screenshot_path", ""), "linkedin_scraper")
+                add_path(
+                    shot.get("path", "") or shot.get("screenshot_path", ""), "linkedin_scraper"
+                )
         if li.get("screenshot_path"):
             add_path(li["screenshot_path"], "linkedin_scraper")
         # LinkedIn profiles list may contain individual screenshot_path fields
-        for profile in (li.get("profiles") or []):
+        for profile in li.get("profiles") or []:
             if isinstance(profile, dict) and profile.get("screenshot_path"):
-                add_path(profile["screenshot_path"], "linkedin_scraper", profile.get("profile_url", ""))
+                add_path(
+                    profile["screenshot_path"], "linkedin_scraper", profile.get("profile_url", "")
+                )
 
         # Screenshots from instagram_scraper
         ig = module_results.get("instagram_scraper", {})
-        for shot in (ig.get("screenshots") or []):
+        for shot in ig.get("screenshots") or []:
             if isinstance(shot, dict):
-                add_path(shot.get("path", "") or shot.get("screenshot_path", ""), "instagram_scraper")
+                add_path(
+                    shot.get("path", "") or shot.get("screenshot_path", ""), "instagram_scraper"
+                )
         if ig.get("screenshot_path"):
             add_path(ig["screenshot_path"], "instagram_scraper")
 
         # Profile images downloaded by image_downloader
         img_dl = module_results.get("image_downloader", {})
-        for img in (img_dl.get("downloaded_images") or []):
+        for img in img_dl.get("downloaded_images") or []:
             if isinstance(img, dict):
                 add_path(img.get("local_path", ""), "image_downloader", img.get("url", ""))
             elif isinstance(img, str):
@@ -262,7 +274,7 @@ class AIVisionAnalyzerModule(BaseModule):
                 add_url(url, "serpapi_image_search")
 
         # Images in discovered_image_urls context key
-        for item in (context.get("discovered_image_urls") or []):
+        for item in context.get("discovered_image_urls") or []:
             if isinstance(item, dict):
                 add_url(item.get("url", ""), item.get("platform", "discovered"))
             elif isinstance(item, str):
@@ -324,8 +336,13 @@ class AIVisionAnalyzerModule(BaseModule):
                 if not data:
                     return None
                 suffix = Path(path).suffix.lower()
-                mime = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
-                        ".gif": "image/gif", ".webp": "image/webp"}.get(suffix, "image/png")
+                mime = {
+                    ".png": "image/png",
+                    ".jpg": "image/jpeg",
+                    ".jpeg": "image/jpeg",
+                    ".gif": "image/gif",
+                    ".webp": "image/webp",
+                }.get(suffix, "image/png")
                 b64 = base64.b64encode(data).decode()
                 return {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}}
             except Exception:
@@ -346,7 +363,10 @@ class AIVisionAnalyzerModule(BaseModule):
                             return None
                         b64 = base64.b64encode(data).decode()
                         mime = content_type.split(";")[0].strip() or "image/jpeg"
-                        return {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}}
+                        return {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:{mime};base64,{b64}"},
+                        }
             except Exception:
                 # Fall back to passing the URL directly
                 if url.startswith("http"):

@@ -51,6 +51,7 @@ def _parse_timestamp(raw: str) -> str | None:
     # Try dateutil for flexible parsing
     try:
         from dateutil import parser as dateutil_parser
+
         dt = dateutil_parser.parse(raw, fuzzy=False)
         return dt.isoformat()
     except Exception:
@@ -76,6 +77,7 @@ def _sort_key(event: TimelineEvent) -> str:
 
 # ── Event extraction ────────────────────────────────────────────────
 
+
 def _extract_account_creations(module_name: str, data: Any) -> list[dict[str, Any]]:
     """Extract account creation date events."""
     events: list[dict[str, Any]] = []
@@ -83,8 +85,12 @@ def _extract_account_creations(module_name: str, data: Any) -> list[dict[str, An
     def _walk(obj: Any) -> None:
         if isinstance(obj, dict):
             for date_key in (
-                "created_at", "account_created_at", "creation_date",
-                "registered_at", "joined_at", "member_since",
+                "created_at",
+                "account_created_at",
+                "creation_date",
+                "registered_at",
+                "joined_at",
+                "member_since",
             ):
                 raw_ts = obj.get(date_key)
                 if not isinstance(raw_ts, str) or not raw_ts.strip():
@@ -93,23 +99,22 @@ def _extract_account_creations(module_name: str, data: Any) -> list[dict[str, An
                 if not ts:
                     continue
                 platform = (
-                    obj.get("platform")
-                    or obj.get("source")
-                    or obj.get("module")
-                    or module_name
+                    obj.get("platform") or obj.get("source") or obj.get("module") or module_name
                 )
                 username = obj.get("username") or obj.get("handle") or obj.get("login") or ""
-                events.append({
-                    "timestamp": ts,
-                    "event_type": "account_created",
-                    "description": (
-                        f"Account created on {platform}"
-                        + (f" (username: {username})" if username else "")
-                    ),
-                    "platform": str(platform),
-                    "source_module": module_name,
-                    "confidence": "high",
-                })
+                events.append(
+                    {
+                        "timestamp": ts,
+                        "event_type": "account_created",
+                        "description": (
+                            f"Account created on {platform}"
+                            + (f" (username: {username})" if username else "")
+                        ),
+                        "platform": str(platform),
+                        "source_module": module_name,
+                        "confidence": "high",
+                    }
+                )
             for v in obj.values():
                 _walk(v)
         elif isinstance(obj, list):
@@ -158,17 +163,19 @@ def _extract_breach_events(module_name: str, data: Any) -> list[dict[str, Any]]:
         else:
             classes_str = str(data_classes)
 
-        events.append({
-            "timestamp": ts,
-            "event_type": "breach",
-            "description": (
-                f"Data breach: {breach_name}"
-                + (f" — exposed: {classes_str}" if classes_str else "")
-            ),
-            "platform": str(breach_name),
-            "source_module": module_name,
-            "confidence": "high" if record.get("is_verified") else "medium",
-        })
+        events.append(
+            {
+                "timestamp": ts,
+                "event_type": "breach",
+                "description": (
+                    f"Data breach: {breach_name}"
+                    + (f" — exposed: {classes_str}" if classes_str else "")
+                ),
+                "platform": str(breach_name),
+                "source_module": module_name,
+                "confidence": "high" if record.get("is_verified") else "medium",
+            }
+        )
 
     return events
 
@@ -189,14 +196,16 @@ def _extract_exif_events(module_name: str, data: Any) -> list[dict[str, Any]]:
                 if not ts:
                     continue
                 source = obj.get("original_url") or obj.get("file_path") or "image"
-                events.append({
-                    "timestamp": ts,
-                    "event_type": "post",
-                    "description": f"Photo captured (EXIF): {source}",
-                    "platform": "image_exif",
-                    "source_module": module_name,
-                    "confidence": "high",
-                })
+                events.append(
+                    {
+                        "timestamp": ts,
+                        "event_type": "post",
+                        "description": f"Photo captured (EXIF): {source}",
+                        "platform": "image_exif",
+                        "source_module": module_name,
+                        "confidence": "high",
+                    }
+                )
             for v in obj.values():
                 _walk(v)
         elif isinstance(obj, list):
@@ -222,18 +231,20 @@ def _extract_domain_events(module_name: str, data: Any) -> list[dict[str, Any]]:
         if isinstance(raw_ts, str) and raw_ts.strip():
             ts = _parse_timestamp(raw_ts)
             if ts:
-                events.append({
-                    "timestamp": ts,
-                    "event_type": "account_created",
-                    "description": f"Domain registered: {domain}",
-                    "platform": "domain_registration",
-                    "source_module": module_name,
-                    "confidence": "high",
-                })
+                events.append(
+                    {
+                        "timestamp": ts,
+                        "event_type": "account_created",
+                        "description": f"Domain registered: {domain}",
+                        "platform": "domain_registration",
+                        "source_module": module_name,
+                        "confidence": "high",
+                    }
+                )
 
     # Certificate transparency log entries
     certs = data.get("certificates") or data.get("cert_records") or []
-    for cert in (certs if isinstance(certs, list) else []):
+    for cert in certs if isinstance(certs, list) else []:
         if not isinstance(cert, dict):
             continue
         raw_ts = cert.get("not_before") or cert.get("issued_at") or cert.get("entry_timestamp")
@@ -241,14 +252,16 @@ def _extract_domain_events(module_name: str, data: Any) -> list[dict[str, Any]]:
             ts = _parse_timestamp(raw_ts)
             if ts:
                 cn = cert.get("common_name") or cert.get("domain") or domain
-                events.append({
-                    "timestamp": ts,
-                    "event_type": "account_created",
-                    "description": f"SSL certificate issued for: {cn}",
-                    "platform": "certificate_transparency",
-                    "source_module": module_name,
-                    "confidence": "high",
-                })
+                events.append(
+                    {
+                        "timestamp": ts,
+                        "event_type": "account_created",
+                        "description": f"SSL certificate issued for: {cn}",
+                        "platform": "certificate_transparency",
+                        "source_module": module_name,
+                        "confidence": "high",
+                    }
+                )
 
     return events
 
@@ -265,6 +278,7 @@ def _extract_post_events(module_name: str, data: Any) -> list[dict[str, Any]]:
                 # Reddit uses UNIX timestamps
                 if isinstance(raw_ts, (int, float)) and raw_ts > 1e8:
                     import datetime
+
                     try:
                         dt = datetime.datetime.utcfromtimestamp(raw_ts)
                         raw_ts = dt.isoformat()
@@ -282,19 +296,17 @@ def _extract_post_events(module_name: str, data: Any) -> list[dict[str, Any]]:
                         or obj.get("body")
                         or ""
                     )
-                    platform = (
-                        obj.get("subreddit_prefixed")
-                        or obj.get("platform")
-                        or module_name
+                    platform = obj.get("subreddit_prefixed") or obj.get("platform") or module_name
+                    events.append(
+                        {
+                            "timestamp": ts,
+                            "event_type": "post",
+                            "description": f"Posted on {platform}: {str(text)[:100]}",
+                            "platform": str(platform),
+                            "source_module": module_name,
+                            "confidence": "high",
+                        }
                     )
-                    events.append({
-                        "timestamp": ts,
-                        "event_type": "post",
-                        "description": f"Posted on {platform}: {str(text)[:100]}",
-                        "platform": str(platform),
-                        "source_module": module_name,
-                        "confidence": "high",
-                    })
                     break
 
     posts = data.get("posts") or data.get("tweets") or data.get("submissions") or []
@@ -375,9 +387,7 @@ class TimelineBuilder:
         # Optional LLM enrichment
         if self._ai_enabled(session) and self._llm_available() and deduped:
             try:
-                deduped = await self._enrich_with_llm(
-                    session.target, deduped
-                )
+                deduped = await self._enrich_with_llm(session.target, deduped)
             except Exception as exc:
                 logger.warning("timeline_llm_failed", error=str(exc))
 
@@ -452,7 +462,10 @@ class TimelineBuilder:
                 isinstance(data, dict)
                 and "data" in data
                 and isinstance(data.get("data"), dict)
-                and (set(data.keys()) <= envelope_keys or any(key in data for key in ("success", "errors", "warnings")))
+                and (
+                    set(data.keys()) <= envelope_keys
+                    or any(key in data for key in ("success", "errors", "warnings"))
+                )
             ):
                 normalized[module_name] = data["data"]
             else:
@@ -502,20 +515,24 @@ class TimelineBuilder:
 
         if json_match:
             try:
-                enriched = json.loads(json_match.group(0) if not hasattr(json_match, 'group') else json_match.group(0))
+                enriched = json.loads(
+                    json_match.group(0) if not hasattr(json_match, "group") else json_match.group(0)
+                )
                 if isinstance(enriched, list) and enriched:
                     # Validate each event has required fields
                     valid = []
                     for ev in enriched:
                         if isinstance(ev, dict) and ev.get("timestamp"):
-                            valid.append({
-                                "timestamp": str(ev.get("timestamp", "")),
-                                "event_type": str(ev.get("event_type", "post")),
-                                "description": str(ev.get("description", "")),
-                                "platform": ev.get("platform") or ev.get("source") or "unknown",
-                                "source_module": ev.get("source_module", "llm"),
-                                "confidence": str(ev.get("confidence", "medium")),
-                            })
+                            valid.append(
+                                {
+                                    "timestamp": str(ev.get("timestamp", "")),
+                                    "event_type": str(ev.get("event_type", "post")),
+                                    "description": str(ev.get("description", "")),
+                                    "platform": ev.get("platform") or ev.get("source") or "unknown",
+                                    "source_module": ev.get("source_module", "llm"),
+                                    "confidence": str(ev.get("confidence", "medium")),
+                                }
+                            )
                     return valid if valid else raw_events
             except (json.JSONDecodeError, AttributeError):
                 pass

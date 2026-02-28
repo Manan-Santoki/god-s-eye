@@ -2,8 +2,7 @@
 Tests for username intelligence modules.
 """
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -16,6 +15,7 @@ class TestSocialChecker:
     @pytest.mark.asyncio
     async def test_metadata(self):
         from app.modules.username.social_checker import SocialCheckerModule
+
         module = SocialCheckerModule()
         meta = module.metadata()
         assert meta.name == "social_checker"
@@ -25,6 +25,7 @@ class TestSocialChecker:
     @pytest.mark.asyncio
     async def test_validate_username(self):
         from app.modules.username.social_checker import SocialCheckerModule
+
         module = SocialCheckerModule()
         assert await module.validate("johndoe", TargetType.USERNAME) is True
         assert await module.validate("j", TargetType.USERNAME) is False
@@ -33,6 +34,7 @@ class TestSocialChecker:
     @pytest.mark.asyncio
     async def test_run_github_found(self, mock_aiohttp_response):
         from app.modules.username.social_checker import SocialCheckerModule
+
         module = SocialCheckerModule()
 
         github_data = {
@@ -54,6 +56,7 @@ class TestSocialChecker:
     @pytest.mark.asyncio
     async def test_run_github_not_found(self, mock_aiohttp_response):
         from app.modules.username.social_checker import SocialCheckerModule
+
         module = SocialCheckerModule()
 
         mock_resp = mock_aiohttp_response({"message": "Not Found"}, status=404)
@@ -70,6 +73,7 @@ class TestSherlockWrapper:
     @pytest.mark.asyncio
     async def test_metadata(self):
         from app.modules.username.sherlock_wrapper import SherlockWrapperModule
+
         module = SherlockWrapperModule()
         meta = module.metadata()
         assert meta.name == "sherlock_wrapper"
@@ -78,6 +82,7 @@ class TestSherlockWrapper:
     @pytest.mark.asyncio
     async def test_validate_username(self):
         from app.modules.username.sherlock_wrapper import SherlockWrapperModule
+
         module = SherlockWrapperModule()
         assert await module.validate("testuser", TargetType.USERNAME) is True
         assert await module.validate("x", TargetType.USERNAME) is False
@@ -86,6 +91,7 @@ class TestSherlockWrapper:
     async def test_run_sherlock_not_installed(self):
         """When sherlock is not installed, module should return gracefully."""
         from app.modules.username.sherlock_wrapper import SherlockWrapperModule
+
         module = SherlockWrapperModule()
 
         with patch("asyncio.create_subprocess_exec") as mock_proc:
@@ -101,12 +107,15 @@ class TestSherlockWrapper:
         import json as _json
 
         from app.modules.username.sherlock_wrapper import SherlockWrapperModule
+
         module = SherlockWrapperModule()
 
-        fake_output = _json.dumps({
-            "GitHub": {"url_user": "https://github.com/testuser", "status": "Claimed"},
-            "Twitter": {"url_user": "https://twitter.com/testuser", "status": "Claimed"},
-        }).encode()
+        fake_output = _json.dumps(
+            {
+                "GitHub": {"url_user": "https://github.com/testuser", "status": "Claimed"},
+                "Twitter": {"url_user": "https://twitter.com/testuser", "status": "Claimed"},
+            }
+        ).encode()
 
         mock_proc = AsyncMock()
         mock_proc.communicate = AsyncMock(return_value=(fake_output, b""))
@@ -124,6 +133,7 @@ class TestMaigretWrapper:
     @pytest.mark.asyncio
     async def test_metadata(self):
         from app.modules.username.maigret_wrapper import MaigretWrapper
+
         module = MaigretWrapper()
         meta = module.metadata()
         assert meta.name == "maigret_wrapper"
@@ -132,6 +142,7 @@ class TestMaigretWrapper:
     @pytest.mark.asyncio
     async def test_validate_valid_username(self):
         from app.modules.username.maigret_wrapper import MaigretWrapper
+
         module = MaigretWrapper()
         assert await module.validate("johndoe", TargetType.USERNAME) is True
         assert await module.validate("john_doe-99", TargetType.USERNAME) is True
@@ -139,6 +150,7 @@ class TestMaigretWrapper:
     @pytest.mark.asyncio
     async def test_validate_invalid_username(self):
         from app.modules.username.maigret_wrapper import MaigretWrapper
+
         module = MaigretWrapper()
         assert await module.validate("x", TargetType.USERNAME) is False
         assert await module.validate("user name with spaces", TargetType.USERNAME) is False
@@ -146,6 +158,7 @@ class TestMaigretWrapper:
     @pytest.mark.asyncio
     async def test_run_fallback_when_not_installed(self):
         from app.modules.username.maigret_wrapper import MaigretWrapper
+
         module = MaigretWrapper()
 
         with patch.dict("sys.modules", {"maigret": None}):

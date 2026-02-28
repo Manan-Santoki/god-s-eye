@@ -21,6 +21,7 @@ def compute_perceptual_hash(file_path: str | Path) -> str | None:
     try:
         import imagehash
         from PIL import Image
+
         img = Image.open(str(file_path))
         return str(imagehash.phash(img))
     except Exception:
@@ -31,6 +32,7 @@ def get_image_dimensions(file_path: str | Path) -> tuple[int, int] | None:
     """Return (width, height) of an image."""
     try:
         from PIL import Image
+
         img = Image.open(str(file_path))
         return img.size
     except Exception:
@@ -41,6 +43,7 @@ def get_image_format(file_path: str | Path) -> str | None:
     """Return image format (JPEG, PNG, etc.)."""
     try:
         from PIL import Image
+
         img = Image.open(str(file_path))
         return img.format
     except Exception:
@@ -51,6 +54,7 @@ def is_image_file(file_path: str | Path) -> bool:
     """Check if a file is a valid image."""
     try:
         from PIL import Image
+
         Image.open(str(file_path)).verify()
         return True
     except Exception:
@@ -66,6 +70,7 @@ def resize_image(
     """Resize image to fit within max dimensions, preserving aspect ratio."""
     try:
         from PIL import Image
+
         img = Image.open(str(input_path))
         img.thumbnail((max_width, max_height), Image.LANCZOS)
         img.save(str(output_path))
@@ -77,6 +82,7 @@ def resize_image(
 def image_to_base64(file_path: str | Path) -> str | None:
     """Convert image to base64 string for API embedding."""
     import base64
+
     try:
         with open(file_path, "rb") as f:
             return base64.b64encode(f.read()).decode()

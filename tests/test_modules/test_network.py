@@ -16,14 +16,20 @@ class TestIPLookupModule:
 
         module = IPLookupModule()
 
-        with patch.object(module, "_resolve_domain_ips", AsyncMock(return_value=["1.2.3.4", "5.6.7.8"])):
+        with patch.object(
+            module, "_resolve_domain_ips", AsyncMock(return_value=["1.2.3.4", "5.6.7.8"])
+        ):
             with patch.object(
                 module,
                 "_lookup_ip",
                 AsyncMock(
                     side_effect=[
-                        type("Lookup", (), {"success": True, "data": {"ip": "1.2.3.4"}, "errors": []})(),
-                        type("Lookup", (), {"success": True, "data": {"ip": "5.6.7.8"}, "errors": []})(),
+                        type(
+                            "Lookup", (), {"success": True, "data": {"ip": "1.2.3.4"}, "errors": []}
+                        )(),
+                        type(
+                            "Lookup", (), {"success": True, "data": {"ip": "5.6.7.8"}, "errors": []}
+                        )(),
                     ]
                 ),
             ):

@@ -4,16 +4,15 @@ Pytest configuration and shared fixtures for GOD_EYE test suite.
 
 import asyncio
 import json
-import os
-import tempfile
 from pathlib import Path
-from typing import Any, AsyncGenerator, Generator
-from unittest.mock import AsyncMock, MagicMock, patch
+from typing import Any
+from unittest.mock import AsyncMock
 
 import pytest
 import pytest_asyncio
 
 # ── Event loop ───────────────────────────────────────────────────────────────
+
 
 @pytest.fixture(scope="session")
 def event_loop_policy():
@@ -21,6 +20,7 @@ def event_loop_policy():
 
 
 # ── Env setup ────────────────────────────────────────────────────────────────
+
 
 @pytest.fixture(autouse=True)
 def set_test_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
@@ -32,8 +32,13 @@ def set_test_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("ENABLE_AI_REPORTS", "false")
     # Unset real API keys so tests don't accidentally make live calls
     for key in [
-        "HIBP_API_KEY", "HUNTER_API_KEY", "SHODAN_API_KEY", "OPENAI_API_KEY",
-        "ANTHROPIC_API_KEY", "VIRUSTOTAL_API_KEY", "ABUSEIPDB_API_KEY",
+        "HIBP_API_KEY",
+        "HUNTER_API_KEY",
+        "SHODAN_API_KEY",
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "VIRUSTOTAL_API_KEY",
+        "ABUSEIPDB_API_KEY",
     ]:
         monkeypatch.delenv(key, raising=False)
 
@@ -47,6 +52,7 @@ def data_dir(tmp_path: Path) -> Path:
 
 
 # ── Sample data fixtures ─────────────────────────────────────────────────────
+
 
 @pytest.fixture
 def sample_email() -> str:
@@ -121,6 +127,7 @@ def sample_scan_result() -> dict[str, Any]:
 @pytest.fixture
 def mock_aiohttp_response():
     """Factory for mocking aiohttp responses."""
+
     def _make_response(json_data: dict, status: int = 200):
         mock = AsyncMock()
         mock.status = status
@@ -129,19 +136,22 @@ def mock_aiohttp_response():
         mock.__aenter__ = AsyncMock(return_value=mock)
         mock.__aexit__ = AsyncMock(return_value=None)
         return mock
+
     return _make_response
 
 
 # ── Session fixture ──────────────────────────────────────────────────────────
 
+
 @pytest_asyncio.fixture
 async def scan_session(tmp_path: Path):
     """Create a real ScanSession backed by a temp directory."""
     import sys
+
     sys.path.insert(0, str(Path(__file__).parent.parent))
 
-    from app.core.constants import TargetType
     from app.core.config import settings
+    from app.core.constants import TargetType
     from app.engine.session import ScanSession
 
     # Point settings to temp data dir
@@ -157,9 +167,11 @@ async def scan_session(tmp_path: Path):
 
 # ── Module base fixture ──────────────────────────────────────────────────────
 
+
 @pytest.fixture
 def mock_module_result():
     """Factory for creating ModuleResult objects."""
+
     def _make(
         module_name: str = "test_module",
         target: str = "test@example.com",
@@ -169,6 +181,7 @@ def mock_module_result():
         findings_count: int = 0,
     ):
         from app.modules.base import ModuleResult
+
         return ModuleResult(
             module_name=module_name,
             target=target,
@@ -177,10 +190,12 @@ def mock_module_result():
             error=error,
             findings_count=findings_count,
         )
+
     return _make
 
 
 # ── Database fixtures ────────────────────────────────────────────────────────
+
 
 @pytest_asyncio.fixture
 async def sqlite_cache(tmp_path: Path):

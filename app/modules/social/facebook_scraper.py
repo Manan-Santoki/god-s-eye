@@ -11,9 +11,9 @@ Phase: BROWSER_AUTH (4)
 
 from typing import Any
 
-from app.modules.base import BaseModule, ModuleMetadata, ModuleResult
 from app.core.constants import ModulePhase, TargetType
 from app.core.logging import get_logger
+from app.modules.base import BaseModule, ModuleMetadata, ModuleResult
 
 logger = get_logger(__name__)
 
@@ -71,7 +71,9 @@ class FacebookScraper(BaseModule):
             if "login" in current_url or "checkpoint" in current_url:
                 logger.info("facebook_login_wall_hit", target=target)
                 # Fall back to search engine query
-                results["note"] = "Facebook requires login for detailed search. Use web_search module for public info."
+                results["note"] = (
+                    "Facebook requires login for detailed search. Use web_search module for public info."
+                )
                 return ModuleResult(
                     module_name=self.metadata().name,
                     target=target,
@@ -92,13 +94,17 @@ class FacebookScraper(BaseModule):
                     profile: dict[str, Any] = {}
 
                     # Name
-                    name_el = await card.query_selector("a[href*='/profile.php'], a[href*='facebook.com/']")
+                    name_el = await card.query_selector(
+                        "a[href*='/profile.php'], a[href*='facebook.com/']"
+                    )
                     if name_el:
                         profile["name"] = (await name_el.inner_text()).strip()
                         profile["url"] = await name_el.get_attribute("href")
 
                     # Location / bio snippet
-                    bio_el = await card.query_selector("[data-testid='result-subtitle'], .result-subtitle")
+                    bio_el = await card.query_selector(
+                        "[data-testid='result-subtitle'], .result-subtitle"
+                    )
                     if bio_el:
                         profile["bio"] = (await bio_el.inner_text()).strip()
 
@@ -140,9 +146,13 @@ class FacebookScraper(BaseModule):
                             "username": target,
                         }
                         if og_desc:
-                            direct_profile["description"] = await og_desc.get_attribute("content") or ""
+                            direct_profile["description"] = (
+                                await og_desc.get_attribute("content") or ""
+                            )
                         if og_img:
-                            direct_profile["image_url"] = await og_img.get_attribute("content") or ""
+                            direct_profile["image_url"] = (
+                                await og_img.get_attribute("content") or ""
+                            )
 
                         results["direct_profile"] = direct_profile
                         results["found"] = True

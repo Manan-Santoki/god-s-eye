@@ -26,9 +26,7 @@ from typing import Any
 
 import numpy as np
 
-from app.core.config import settings
 from app.core.constants import ModulePhase, TargetType
-from app.core.exceptions import APIError, RateLimitError
 from app.core.logging import get_logger
 from app.modules.base import BaseModule, ModuleMetadata, ModuleResult
 
@@ -36,8 +34,8 @@ logger = get_logger(__name__)
 
 # Lazy InsightFace import — may not be installed
 try:
-    import insightface
     from insightface.app import FaceAnalysis
+
     _INSIGHTFACE_AVAILABLE = True
 except ImportError:
     _INSIGHTFACE_AVAILABLE = False
@@ -50,9 +48,17 @@ _POSSIBLE_MATCH_THRESHOLD = 0.4
 _MODEL_NAME = "buffalo_l"
 
 # Image file extensions to process
-_IMAGE_EXTENSIONS = frozenset({
-    ".jpg", ".jpeg", ".png", ".tiff", ".tif", ".bmp", ".webp",
-})
+_IMAGE_EXTENSIONS = frozenset(
+    {
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".tiff",
+        ".tif",
+        ".bmp",
+        ".webp",
+    }
+)
 
 
 class FaceRecognitionModule(BaseModule):
@@ -158,9 +164,7 @@ class FaceRecognitionModule(BaseModule):
             )
         except Exception as exc:
             logger.exception("reference_embedding_failed", error=str(exc))
-            return ModuleResult.fail(
-                f"Failed to extract reference face embeddings: {exc}"
-            )
+            return ModuleResult.fail(f"Failed to extract reference face embeddings: {exc}")
 
         if not reference_embeddings:
             return ModuleResult(
@@ -171,9 +175,7 @@ class FaceRecognitionModule(BaseModule):
                     "possible_matches": [],
                     "total_images_scanned": 0,
                 },
-                warnings=[
-                    f"No faces detected in reference image: {reference_path.name}"
-                ],
+                warnings=[f"No faces detected in reference image: {reference_path.name}"],
             )
 
         logger.info(
@@ -200,7 +202,7 @@ class FaceRecognitionModule(BaseModule):
         matches: list[dict[str, Any]] = []
         possible_matches: list[dict[str, Any]] = []
 
-        for img_path, result in zip(scan_images, results):
+        for img_path, result in zip(scan_images, results, strict=False):
             if isinstance(result, Exception):
                 errors.append(f"Face detection failed for {img_path.name}: {result}")
                 continue
@@ -350,15 +352,17 @@ class FaceRecognitionModule(BaseModule):
                 # Extract bounding box for reference
                 bbox = face.bbox.tolist() if hasattr(face, "bbox") and face.bbox is not None else []
 
-                results.append({
-                    "file_path": str(image_path),
-                    "similarity": round(max_similarity, 4),
-                    "confidence": self._similarity_to_confidence(max_similarity),
-                    "match_type": "",  # Set by caller
-                    "face_bbox": bbox,
-                    "age": int(face.age) if hasattr(face, "age") and face.age else None,
-                    "gender": _decode_gender(face) if hasattr(face, "gender") else None,
-                })
+                results.append(
+                    {
+                        "file_path": str(image_path),
+                        "similarity": round(max_similarity, 4),
+                        "confidence": self._similarity_to_confidence(max_similarity),
+                        "match_type": "",  # Set by caller
+                        "face_bbox": bbox,
+                        "age": int(face.age) if hasattr(face, "age") and face.age else None,
+                        "gender": _decode_gender(face) if hasattr(face, "gender") else None,
+                    }
+                )
 
         return results
 

@@ -3,18 +3,18 @@ Tests for the scan orchestrator engine.
 """
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
-from app.core.constants import TargetType, ScanStatus
+from app.core.constants import ScanStatus, TargetType
 
 
 class TestScanSession:
     """Tests for app.engine.session.ScanSession"""
 
     def test_session_creates_request_id(self, tmp_path):
-        from app.engine.session import ScanSession, generate_request_id
+        from app.engine.session import generate_request_id
 
         request_id = generate_request_id("test@example.com")
         assert request_id.startswith("req_")
@@ -38,6 +38,7 @@ class TestScanSession:
         assert module_file.exists()
 
         import json
+
         with open(module_file) as f:
             data = json.load(f)
         assert data["key"] == "value"
@@ -97,6 +98,7 @@ class TestProxyRotator:
         monkeypatch.setenv("VPN_ENABLED", "false")
 
         from app.engine.proxy import ProxyRotator
+
         rotator = ProxyRotator()
 
         proxy = await rotator.get_proxy()
@@ -116,6 +118,7 @@ class TestProxyRotator:
 
     def test_record_success_updates_stats(self, monkeypatch):
         from app.engine.proxy import ProxyRotator
+
         rotator = ProxyRotator()
 
         rotator.record_success("http://proxy.example.com:8080")
@@ -150,8 +153,10 @@ class TestOrchestrator:
                     phase=1,
                     target_types=[TargetType.EMAIL],
                 )
+
             async def validate(self, target, target_type, **kwargs):
                 return True
+
             async def run(self, target, target_type, **kwargs):
                 return ModuleResult(
                     module_name="mock_email",
@@ -160,19 +165,13 @@ class TestOrchestrator:
                     data={"test": True},
                 )
 
-        orchestrator = Orchestrator()
+        Orchestrator()
         modules = [MockEmailModule()]
 
-        email_modules = [
-            m for m in modules
-            if TargetType.EMAIL in m.metadata().target_types
-        ]
+        email_modules = [m for m in modules if TargetType.EMAIL in m.metadata().target_types]
         assert len(email_modules) == 1
 
-        ip_modules = [
-            m for m in modules
-            if TargetType.IP in m.metadata().target_types
-        ]
+        ip_modules = [m for m in modules if TargetType.IP in m.metadata().target_types]
         assert len(ip_modules) == 0
 
     @pytest.mark.asyncio
@@ -188,8 +187,11 @@ class TestOrchestrator:
             findings_count=1,
         )
 
-        with patch("app.engine.orchestrator.Orchestrator._execute_module", return_value=mock_result):
+        with patch(
+            "app.engine.orchestrator.Orchestrator._execute_module", return_value=mock_result
+        ):
             from app.engine.orchestrator import Orchestrator
+
             orchestrator = Orchestrator()
             # Verify orchestrator initializes without errors
             assert orchestrator is not None

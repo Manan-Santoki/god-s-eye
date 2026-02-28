@@ -62,9 +62,7 @@ class TwitterAPIModule(BaseModule):
                 "twitter_api_skipped",
                 reason="TWITTER_BEARER_TOKEN not configured",
             )
-            return ModuleResult.fail(
-                "Twitter API not configured: set TWITTER_BEARER_TOKEN in .env"
-            )
+            return ModuleResult.fail("Twitter API not configured: set TWITTER_BEARER_TOKEN in .env")
 
         headers = {
             "Authorization": f"Bearer {bearer_token}",
@@ -85,12 +83,15 @@ class TwitterAPIModule(BaseModule):
                 if exc.status_code == 404:
                     return ModuleResult(
                         success=True,
-                        data={"found": False, "username": username, "profile": {}, "recent_tweets": []},
+                        data={
+                            "found": False,
+                            "username": username,
+                            "profile": {},
+                            "recent_tweets": [],
+                        },
                     )
                 if exc.status_code == 401:
-                    return ModuleResult.fail(
-                        "Twitter Bearer Token is invalid or expired"
-                    )
+                    return ModuleResult.fail("Twitter Bearer Token is invalid or expired")
                 return ModuleResult.fail(str(exc))
 
             if user_data is None:
@@ -278,7 +279,7 @@ class TwitterAPIModule(BaseModule):
             "tweets_count": metrics.get("tweet_count", 0),
             "listed_count": metrics.get("listed_count", 0),
             "url": (user.get("entities", {}) or {})
-                   .get("url", {})
-                   .get("urls", [{}])[0]
-                   .get("expanded_url", user.get("url") or ""),
+            .get("url", {})
+            .get("urls", [{}])[0]
+            .get("expanded_url", user.get("url") or ""),
         }

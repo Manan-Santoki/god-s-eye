@@ -109,13 +109,10 @@ class HIBPBreachCheckerModule(BaseModule):
             1
             for b in breaches
             if any(
-                dc.lower() in ("passwords", "password hints")
-                for dc in b.get("data_classes", [])
+                dc.lower() in ("passwords", "password hints") for dc in b.get("data_classes", [])
             )
         )
-        breach_dates = [
-            b["breach_date"] for b in breaches if b.get("breach_date")
-        ]
+        breach_dates = [b["breach_date"] for b in breaches if b.get("breach_date")]
         earliest_breach = min(breach_dates) if breach_dates else None
         latest_breach = max(breach_dates) if breach_dates else None
 

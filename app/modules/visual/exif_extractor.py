@@ -22,9 +22,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from app.core.config import settings
 from app.core.constants import ModulePhase, TargetType
-from app.core.exceptions import APIError, RateLimitError
 from app.core.logging import get_logger
 from app.modules.base import BaseModule, ModuleMetadata, ModuleResult
 
@@ -33,19 +31,21 @@ logger = get_logger(__name__)
 # Lazy imports — these libraries may not be installed
 try:
     import exifread
+
     _EXIFREAD_AVAILABLE = True
 except ImportError:
     _EXIFREAD_AVAILABLE = False
 
 try:
     from PIL import Image as PILImage
+
     _PILLOW_AVAILABLE = True
 except ImportError:
     _PILLOW_AVAILABLE = False
 
 try:
     from geopy.geocoders import Nominatim
-    from geopy.exc import GeocoderTimedOut, GeocoderServiceError
+
     _GEOPY_AVAILABLE = True
 except ImportError:
     _GEOPY_AVAILABLE = False
@@ -135,10 +135,7 @@ class EXIFExtractorModule(BaseModule):
         # Process all images in a thread pool (I/O + CPU bound operations)
         loop = asyncio.get_event_loop()
         tasks = [
-            loop.run_in_executor(
-                None, self._process_image, path, geocoder
-            )
-            for path in image_paths
+            loop.run_in_executor(None, self._process_image, path, geocoder) for path in image_paths
         ]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -146,15 +143,17 @@ class EXIFExtractorModule(BaseModule):
         images_processed: list[dict[str, Any]] = []
         images_with_gps: list[dict[str, Any]] = []
 
-        for path, result in zip(image_paths, results):
+        for path, result in zip(image_paths, results, strict=False):
             if isinstance(result, Exception):
                 errors.append(f"EXIF extraction failed for {path}: {result}")
-                images_processed.append({
-                    "file_path": str(path),
-                    "has_exif": False,
-                    "error": str(result),
-                    "metadata": {},
-                })
+                images_processed.append(
+                    {
+                        "file_path": str(path),
+                        "has_exif": False,
+                        "error": str(result),
+                        "metadata": {},
+                    }
+                )
             else:
                 images_processed.append(result)
                 if result.get("metadata", {}).get("gps_latitude") is not None:
@@ -317,8 +316,16 @@ class EXIFExtractorModule(BaseModule):
             if isinstance(item, str):
                 p = Path(item)
                 if p.suffix.lower() in {
-                    ".jpg", ".jpeg", ".png", ".tiff", ".tif",
-                    ".heic", ".heif", ".webp", ".bmp", ".gif",
+                    ".jpg",
+                    ".jpeg",
+                    ".png",
+                    ".tiff",
+                    ".tif",
+                    ".heic",
+                    ".heif",
+                    ".webp",
+                    ".bmp",
+                    ".gif",
                 }:
                     paths.append(p)
             elif isinstance(item, dict):
@@ -326,8 +333,16 @@ class EXIFExtractorModule(BaseModule):
                 if path_str:
                     p = Path(str(path_str))
                     if p.suffix.lower() in {
-                        ".jpg", ".jpeg", ".png", ".tiff", ".tif",
-                        ".heic", ".heif", ".webp", ".bmp", ".gif",
+                        ".jpg",
+                        ".jpeg",
+                        ".png",
+                        ".tiff",
+                        ".tif",
+                        ".heic",
+                        ".heif",
+                        ".webp",
+                        ".bmp",
+                        ".gif",
                     }:
                         paths.append(p)
             elif isinstance(item, Path):
@@ -336,6 +351,7 @@ class EXIFExtractorModule(BaseModule):
 
 
 # ── EXIF tag helper functions ─────────────────────────────────────────────────
+
 
 def _tag_str(tags: dict[str, Any], key: str) -> str:
     """Extract an EXIF tag value as a plain string."""

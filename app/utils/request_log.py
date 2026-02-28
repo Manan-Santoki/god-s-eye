@@ -5,7 +5,7 @@ Per-request search/crawl activity logging.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -25,7 +25,7 @@ def append_request_log(
         return
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    timestamp = datetime.now(timezone.utc).isoformat()
+    timestamp = datetime.now(UTC).isoformat()
     parts = [timestamp, f"module={json.dumps(module)}", f"event={json.dumps(event)}"]
     for key, value in details.items():
         if value is None:

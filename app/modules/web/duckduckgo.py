@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import re
 from typing import Any
-from urllib.parse import quote_plus
 
 import aiohttp
 from bs4 import BeautifulSoup
@@ -80,6 +79,7 @@ class DuckDuckGoModule(BaseModule):
         ) as session:
             # Run both endpoints concurrently
             import asyncio
+
             api_task = self._fetch_instant_answer(session, target, context, errors)
             html_task = self._fetch_html_results(session, target, context, errors, warnings)
 
@@ -294,6 +294,7 @@ class DuckDuckGoModule(BaseModule):
         match = re.search(r"[?&]uddg=([^&]+)", href)
         if match:
             from urllib.parse import unquote
+
             return unquote(match.group(1))
 
         # Relative path with /l/ redirect
@@ -301,6 +302,7 @@ class DuckDuckGoModule(BaseModule):
             match = re.search(r"[?&]uddg=([^&]+)", href)
             if match:
                 from urllib.parse import unquote
+
                 return unquote(match.group(1))
 
         return href

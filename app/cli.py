@@ -26,19 +26,15 @@ Usage:
 import asyncio
 import json
 import sys
-from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 import typer
 from rich import box
-from rich.columns import Columns
 from rich.console import Console
 from rich.markup import escape
 from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
-from rich.text import Text
 
 from app import __version__
 
@@ -51,7 +47,7 @@ app = typer.Typer(
 )
 console = Console()
 
-BANNER = """
+BANNER = f"""
 [bold cyan]
   ██████╗  ██████╗ ██████╗      ███████╗██╗   ██╗███████╗
  ██╔════╝ ██╔═══██╗██╔══██╗     ██╔════╝╚██╗ ██╔╝██╔════╝
@@ -60,9 +56,9 @@ BANNER = """
  ╚██████╔╝╚██████╔╝██████╔╝     ███████╗   ██║   ███████╗
   ╚═════╝  ╚═════╝ ╚═════╝      ╚══════╝   ╚═╝   ╚══════╝
 [/bold cyan]
-[dim]Open Source Intelligence Platform v{version}[/dim]
+[dim]Open Source Intelligence Platform v{__version__}[/dim]
 [red]⚠  For authorized security research and personal privacy auditing ONLY.[/red]
-""".format(version=__version__)
+"""
 
 
 def show_banner() -> None:
@@ -71,20 +67,24 @@ def show_banner() -> None:
 
 def show_consent_banner() -> bool:
     """Show ethics/legal consent banner. Return True if user consents."""
-    console.print(Panel(
-        "[bold yellow]⚖  LEGAL & ETHICAL NOTICE[/bold yellow]\n\n"
-        "GOD_EYE collects publicly available information for:\n"
-        "  • Personal privacy auditing (your own data)\n"
-        "  • Authorized security research\n"
-        "  • Journalism and academic research\n\n"
-        "[red bold]This tool must NOT be used without authorization.[/red bold]\n"
-        "Unauthorized OSINT may violate the CFAA, GDPR, CCPA, and local laws.\n\n"
-        "An audit log of all searches is maintained for accountability.\n"
-        "See SECURITY_AND_ETHICS.md for full usage policy.",
-        border_style="yellow",
-        title="[bold yellow]GOD_EYE Ethics Consent[/bold yellow]",
-    ))
-    return Confirm.ask("[bold]Do you confirm you have authorization to investigate this target?[/bold]")
+    console.print(
+        Panel(
+            "[bold yellow]⚖  LEGAL & ETHICAL NOTICE[/bold yellow]\n\n"
+            "GOD_EYE collects publicly available information for:\n"
+            "  • Personal privacy auditing (your own data)\n"
+            "  • Authorized security research\n"
+            "  • Journalism and academic research\n\n"
+            "[red bold]This tool must NOT be used without authorization.[/red bold]\n"
+            "Unauthorized OSINT may violate the CFAA, GDPR, CCPA, and local laws.\n\n"
+            "An audit log of all searches is maintained for accountability.\n"
+            "See SECURITY_AND_ETHICS.md for full usage policy.",
+            border_style="yellow",
+            title="[bold yellow]GOD_EYE Ethics Consent[/bold yellow]",
+        )
+    )
+    return Confirm.ask(
+        "[bold]Do you confirm you have authorization to investigate this target?[/bold]"
+    )
 
 
 def _run_async(coro):
@@ -101,6 +101,7 @@ def _run_async(coro):
 
 
 # ── Commands ────────────────────────────────────────────────────
+
 
 @app.callback(invoke_without_command=True)
 def main(
@@ -119,23 +120,41 @@ def main(
 @app.command()
 def scan(
     # Target inputs
-    email: Optional[str] = typer.Option(None, "--email", "-e", help="Target email address"),
-    username: Optional[str] = typer.Option(None, "--username", "-u", help="Target username"),
-    name: Optional[str] = typer.Option(None, "--name", "-n", help="Target full name"),
-    phone: Optional[str] = typer.Option(None, "--phone", "-p", help="Target phone number"),
-    domain: Optional[str] = typer.Option(None, "--domain", "-d", help="Target domain"),
-    ip: Optional[str] = typer.Option(None, "--ip", help="Target IP address"),
-    company: Optional[str] = typer.Option(None, "--company", "-c", help="Target company name"),
-    target: Optional[str] = typer.Option(None, "--target", "-t", help="Generic target (auto-detected type)"),
+    email: str | None = typer.Option(None, "--email", "-e", help="Target email address"),
+    username: str | None = typer.Option(None, "--username", "-u", help="Target username"),
+    name: str | None = typer.Option(None, "--name", "-n", help="Target full name"),
+    phone: str | None = typer.Option(None, "--phone", "-p", help="Target phone number"),
+    domain: str | None = typer.Option(None, "--domain", "-d", help="Target domain"),
+    ip: str | None = typer.Option(None, "--ip", help="Target IP address"),
+    company: str | None = typer.Option(None, "--company", "-c", help="Target company name"),
+    target: str | None = typer.Option(
+        None, "--target", "-t", help="Generic target (auto-detected type)"
+    ),
     # Narrowing filters (improves precision for common names)
-    work: Optional[str] = typer.Option(None, "--work", "-w", help="Target's employer/workplace (narrows searches for common names, e.g. --work 'BlackRock')"),
-    location: Optional[str] = typer.Option(None, "--location", "-l", help="Target's city/country (narrows searches, e.g. --location 'Mumbai')"),
+    work: str | None = typer.Option(
+        None,
+        "--work",
+        "-w",
+        help="Target's employer/workplace (narrows searches for common names, e.g. --work 'BlackRock')",
+    ),
+    location: str | None = typer.Option(
+        None,
+        "--location",
+        "-l",
+        help="Target's city/country (narrows searches, e.g. --location 'Mumbai')",
+    ),
     # Scan options
-    phases: Optional[str] = typer.Option(None, "--phases", help="Comma-separated phase numbers (e.g., 1,2,3)"),
-    modules: Optional[str] = typer.Option(None, "--modules", "-m", help="Comma-separated module names"),
+    phases: str | None = typer.Option(
+        None, "--phases", help="Comma-separated phase numbers (e.g., 1,2,3)"
+    ),
+    modules: str | None = typer.Option(
+        None, "--modules", "-m", help="Comma-separated module names"
+    ),
     no_ai: bool = typer.Option(False, "--no-ai", help="Skip AI correlation and reports"),
     no_progress: bool = typer.Option(False, "--no-progress", help="Suppress progress bars"),
-    output_dir: Optional[str] = typer.Option(None, "--output-dir", "-o", help="Custom output directory"),
+    output_dir: str | None = typer.Option(
+        None, "--output-dir", "-o", help="Custom output directory"
+    ),
 ) -> None:
     """
     [bold]Run an OSINT scan[/bold] against a target.
@@ -212,13 +231,20 @@ def scan(
     module_list = [m.strip() for m in modules.split(",")] if modules else None
 
     show_banner()
-    console.print(f"[bold cyan]Starting scan...[/bold cyan]")
+    console.print("[bold cyan]Starting scan...[/bold cyan]")
     console.print(f"Target: [bold]{escape(primary_target)}[/bold] | Type: {primary_type.value}\n")
 
-    _run_async(_async_scan(
-        primary_target, primary_type, target_inputs,
-        phase_list, module_list, not no_ai, not no_progress
-    ))
+    _run_async(
+        _async_scan(
+            primary_target,
+            primary_type,
+            target_inputs,
+            phase_list,
+            module_list,
+            not no_ai,
+            not no_progress,
+        )
+    )
 
 
 async def _async_scan(
@@ -255,17 +281,23 @@ def _display_scan_results(session) -> None:
 
     # Status panel
     status_color = "green" if meta.status == "completed" else "red"
-    console.print(Panel(
-        f"[bold]Status:[/bold] [{status_color}]{meta.status.upper()}[/{status_color}]\n"
-        f"[bold]Request ID:[/bold] {meta.request_id}\n"
-        f"[bold]Target:[/bold] {escape(meta.target)}\n"
-        f"[bold]Duration:[/bold] {meta.execution_time_seconds}s\n"
-        f"[bold]Findings:[/bold] {meta.total_findings}\n"
-        f"[bold]Modules:[/bold] {len(meta.modules_executed)} executed, {len(meta.modules_failed)} failed\n"
-        + (f"[bold]Risk Score:[/bold] {meta.risk_score}/10 ({meta.risk_level})\n" if meta.risk_score else ""),
-        title="[bold cyan]Scan Complete[/bold cyan]",
-        border_style=status_color,
-    ))
+    console.print(
+        Panel(
+            f"[bold]Status:[/bold] [{status_color}]{meta.status.upper()}[/{status_color}]\n"
+            f"[bold]Request ID:[/bold] {meta.request_id}\n"
+            f"[bold]Target:[/bold] {escape(meta.target)}\n"
+            f"[bold]Duration:[/bold] {meta.execution_time_seconds}s\n"
+            f"[bold]Findings:[/bold] {meta.total_findings}\n"
+            f"[bold]Modules:[/bold] {len(meta.modules_executed)} executed, {len(meta.modules_failed)} failed\n"
+            + (
+                f"[bold]Risk Score:[/bold] {meta.risk_score}/10 ({meta.risk_level})\n"
+                if meta.risk_score
+                else ""
+            ),
+            title="[bold cyan]Scan Complete[/bold cyan]",
+            border_style=status_color,
+        )
+    )
 
     console.print(f"\nResults saved to: [dim]data/requests/{meta.request_id}/[/dim]")
     console.print(f"View details: [bold cyan]god_eye view {meta.request_id}[/bold cyan]")
@@ -274,7 +306,7 @@ def _display_scan_results(session) -> None:
 @app.command("list")
 def list_scans(
     limit: int = typer.Option(20, "--limit", "-l", help="Number of scans to show"),
-    status: Optional[str] = typer.Option(None, "--status", "-s", help="Filter by status"),
+    status: str | None = typer.Option(None, "--status", "-s", help="Filter by status"),
 ) -> None:
     """List previous OSINT scans."""
     _run_async(_async_list_scans(limit, status))
@@ -282,6 +314,7 @@ def list_scans(
 
 async def _async_list_scans(limit: int, status: str | None) -> None:
     from app.database.sqlite_cache import get_cache
+
     cache = await get_cache()
     scans = await cache.list_scans(limit=limit, status=status)
 
@@ -300,7 +333,9 @@ async def _async_list_scans(limit: int, status: str | None) -> None:
 
     for scan in scans:
         status_str = scan.get("status", "unknown")
-        status_color = {"completed": "green", "failed": "red", "running": "yellow"}.get(status_str, "white")
+        status_color = {"completed": "green", "failed": "red", "running": "yellow"}.get(
+            status_str, "white"
+        )
         risk = scan.get("risk_score")
         risk_str = f"{risk:.1f}" if risk else "—"
         date = scan.get("started_at", "")[:16] if scan.get("started_at") else "—"
@@ -321,7 +356,7 @@ async def _async_list_scans(limit: int, status: str | None) -> None:
 @app.command()
 def view(
     request_id: str = typer.Argument(..., help="Scan request ID"),
-    module: Optional[str] = typer.Option(None, "--module", "-m", help="Show only this module's data"),
+    module: str | None = typer.Option(None, "--module", "-m", help="Show only this module's data"),
 ) -> None:
     """View results of a previous scan."""
     _run_async(_async_view(request_id, module))
@@ -329,6 +364,7 @@ def view(
 
 async def _async_view(request_id: str, module: str | None) -> None:
     from app.core.config import settings
+
     scan_dir = Path(settings.data_dir) / "requests" / request_id
 
     if not scan_dir.exists():
@@ -339,10 +375,12 @@ async def _async_view(request_id: str, module: str | None) -> None:
     if meta_file.exists():
         with open(meta_file) as f:
             meta = json.load(f)
-        console.print(Panel(
-            json.dumps(meta, indent=2, default=str),
-            title=f"[bold cyan]{request_id} — Metadata[/bold cyan]",
-        ))
+        console.print(
+            Panel(
+                json.dumps(meta, indent=2, default=str),
+                title=f"[bold cyan]{request_id} — Metadata[/bold cyan]",
+            )
+        )
 
     raw_dir = scan_dir / "raw_data"
     if raw_dir.exists():
@@ -352,10 +390,12 @@ async def _async_view(request_id: str, module: str | None) -> None:
                 continue
             with open(result_file) as f:
                 data = json.load(f)
-            console.print(Panel(
-                json.dumps(data, indent=2, default=str)[:3000],
-                title=f"[bold green]{mod_name}[/bold green]",
-            ))
+            console.print(
+                Panel(
+                    json.dumps(data, indent=2, default=str)[:3000],
+                    title=f"[bold green]{mod_name}[/bold green]",
+                )
+            )
 
 
 @app.command()
@@ -394,6 +434,7 @@ def health() -> None:
 
 async def _async_health() -> None:
     from app.core.config import settings
+
     console.print(Panel("[bold cyan]GOD_EYE Health Check[/bold cyan]", border_style="cyan"))
 
     checks = []
@@ -401,6 +442,7 @@ async def _async_health() -> None:
     # Neo4j
     try:
         from app.database.neo4j_client import Neo4jClient
+
         client = Neo4jClient()
         await client.connect()
         ok = await client.health_check()
@@ -412,6 +454,7 @@ async def _async_health() -> None:
     # Redis
     try:
         from app.database.redis_client import RedisClient
+
         redis = RedisClient()
         await redis.connect()
         ok = await redis.health_check()
@@ -423,6 +466,7 @@ async def _async_health() -> None:
     # Playwright
     try:
         from playwright.async_api import async_playwright
+
         async with async_playwright() as p:
             browser = await p.chromium.launch()
             await browser.close()
@@ -434,6 +478,7 @@ async def _async_health() -> None:
     if settings.vpn_enabled:
         try:
             import aiohttp
+
             async with aiohttp.ClientSession() as session:
                 async with session.get(
                     settings.gluetun_http_proxy.replace("http://", "http://") + "/v1/publicip/ip",
@@ -447,6 +492,7 @@ async def _async_health() -> None:
     # Module count
     try:
         from app.modules import get_registry
+
         count = len(get_registry())
         checks.append(("Modules", f"✓ {count} registered", True))
     except Exception as e:
@@ -482,8 +528,12 @@ def setup() -> None:
     console.print("[bold]Essential Keys (highly recommended):[/bold]")
     ask_key("GitHub Token (free)", "GITHUB_TOKEN", "https://github.com/settings/tokens")
     ask_key("HIBP API Key", "HIBP_API_KEY", "https://haveibeenpwned.com/API/Key")
-    ask_key("Anthropic API Key (for AI reports)", "ANTHROPIC_API_KEY", "https://console.anthropic.com/")
-    ask_key("OpenRouter API Key (for AI reports)", "OPENROUTER_API_KEY", "https://openrouter.ai/keys")
+    ask_key(
+        "Anthropic API Key (for AI reports)", "ANTHROPIC_API_KEY", "https://console.anthropic.com/"
+    )
+    ask_key(
+        "OpenRouter API Key (for AI reports)", "OPENROUTER_API_KEY", "https://openrouter.ai/keys"
+    )
 
     console.print("\n[bold]Search Engine APIs:[/bold]")
     ask_key("SerpApi Key", "SERPAPI_API_KEY", "https://serpapi.com/manage-api-key")
@@ -505,13 +555,17 @@ def setup() -> None:
     else:
         console.print("\n[dim]No keys entered.[/dim]")
 
-    console.print("\n[bold green]Setup complete![/bold green] Run [bold cyan]god_eye health[/bold cyan] to verify services.")
+    console.print(
+        "\n[bold green]Setup complete![/bold green] Run [bold cyan]god_eye health[/bold cyan] to verify services."
+    )
 
 
 @app.command()
 def report(
     request_id: str = typer.Argument(..., help="Scan request ID to generate report for"),
-    format: str = typer.Option("all", "--format", "-f", help="Output format: json|markdown|html|pdf|all"),
+    format: str = typer.Option(
+        "all", "--format", "-f", help="Output format: json|markdown|html|pdf|all"
+    ),
 ) -> None:
     """Generate or re-generate a report for an existing scan."""
     _run_async(_async_report(request_id, format))
@@ -519,6 +573,7 @@ def report(
 
 async def _async_report(request_id: str, format: str) -> None:
     from app.engine.session import ScanSession
+
     session = ScanSession.load_from_disk(request_id)
     if not session:
         console.print(f"[red]Scan not found: {request_id}[/red]")
@@ -528,10 +583,11 @@ async def _async_report(request_id: str, format: str) -> None:
 
     try:
         from app.ai.report_generator import ReportGenerator
+
         generator = ReportGenerator()
         selected_formats = None if format == "all" else [format]
         paths = await generator.generate_all(session, formats=selected_formats)
-        console.print(f"[green]✓ Report generated:[/green]")
+        console.print("[green]✓ Report generated:[/green]")
         for fmt, path in paths.items():
             console.print(f"  {fmt}: [dim]{path}[/dim]")
     except Exception as e:
@@ -550,13 +606,16 @@ def cache_stats() -> None:
 
 async def _async_cache_stats() -> None:
     from app.database.sqlite_cache import get_cache
+
     cache = await get_cache()
     stats = await cache.get_stats()
-    console.print(Panel(
-        f"Active entries: [bold]{stats['active_entries']}[/bold]\n"
-        f"Total cache hits: [bold]{stats['total_hits']}[/bold]",
-        title="[bold cyan]Cache Statistics[/bold cyan]",
-    ))
+    console.print(
+        Panel(
+            f"Active entries: [bold]{stats['active_entries']}[/bold]\n"
+            f"Total cache hits: [bold]{stats['total_hits']}[/bold]",
+            title="[bold cyan]Cache Statistics[/bold cyan]",
+        )
+    )
 
 
 @cache_app.command("clear")
@@ -567,6 +626,7 @@ def cache_clear() -> None:
 
 async def _async_cache_clear() -> None:
     from app.database.sqlite_cache import get_cache
+
     cache = await get_cache()
     count = await cache.clear_expired()
     console.print(f"[green]✓ Cleared {count} expired cache entries.[/green]")

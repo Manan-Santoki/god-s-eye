@@ -2,15 +2,14 @@
 YouTube Data API v3 — channel and video discovery.
 """
 
-import asyncio
 import time
 
 import aiohttp
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from app.core.config import settings
-from app.core.constants import TargetType, ModulePhase
-from app.core.exceptions import APIError, RateLimitError
+from app.core.constants import ModulePhase, TargetType
+from app.core.exceptions import RateLimitError
 from app.core.logging import get_logger
 from app.modules.base import BaseModule, ModuleMetadata, ModuleResult
 
@@ -19,7 +18,6 @@ BASE = "https://www.googleapis.com/youtube/v3"
 
 
 class YouTubeAPI(BaseModule):
-
     def metadata(self) -> ModuleMetadata:
         return ModuleMetadata(
             name="youtube_api",
@@ -83,14 +81,19 @@ class YouTubeAPI(BaseModule):
                 errors=[str(e)],
             )
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=2, max=30),
-           retry=retry_if_exception_type(RateLimitError))
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(min=2, max=30),
+        retry=retry_if_exception_type(RateLimitError),
+    )
     async def _search_channels(self, query: str, key: str) -> list[dict]:
         url = f"{BASE}/search"
         params = {"part": "snippet", "q": query, "type": "channel", "maxResults": 5, "key": key}
 
         async with aiohttp.ClientSession() as session:
-            async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+            async with session.get(
+                url, params=params, timeout=aiohttp.ClientTimeout(total=15)
+            ) as resp:
                 if resp.status == 429:
                     raise RateLimitError("youtube")
                 if resp.status != 200:
@@ -101,14 +104,16 @@ class YouTubeAPI(BaseModule):
         for item in data.get("items", []):
             snippet = item.get("snippet", {})
             channel_id = item.get("id", {}).get("channelId", "")
-            channels.append({
-                "id": channel_id,
-                "title": snippet.get("title"),
-                "description": snippet.get("description", "")[:300],
-                "published_at": snippet.get("publishedAt"),
-                "thumbnail": snippet.get("thumbnails", {}).get("default", {}).get("url"),
-                "url": f"https://www.youtube.com/channel/{channel_id}",
-            })
+            channels.append(
+                {
+                    "id": channel_id,
+                    "title": snippet.get("title"),
+                    "description": snippet.get("description", "")[:300],
+                    "published_at": snippet.get("publishedAt"),
+                    "thumbnail": snippet.get("thumbnails", {}).get("default", {}).get("url"),
+                    "url": f"https://www.youtube.com/channel/{channel_id}",
+                }
+            )
         return channels
 
     async def _get_channel_videos(self, channel_id: str, key: str) -> list[dict]:
@@ -122,7 +127,9 @@ class YouTubeAPI(BaseModule):
             "key": key,
         }
         async with aiohttp.ClientSession() as session:
-            async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+            async with session.get(
+                url, params=params, timeout=aiohttp.ClientTimeout(total=15)
+            ) as resp:
                 if resp.status != 200:
                     return []
                 data = await resp.json()
@@ -131,11 +138,13 @@ class YouTubeAPI(BaseModule):
         for item in data.get("items", []):
             snippet = item.get("snippet", {})
             video_id = item.get("id", {}).get("videoId", "")
-            videos.append({
-                "id": video_id,
-                "title": snippet.get("title"),
-                "description": snippet.get("description", "")[:200],
-                "published_at": snippet.get("publishedAt"),
-                "url": f"https://www.youtube.com/watch?v={video_id}",
-            })
+            videos.append(
+                {
+                    "id": video_id,
+                    "title": snippet.get("title"),
+                    "description": snippet.get("description", "")[:200],
+                    "published_at": snippet.get("publishedAt"),
+                    "url": f"https://www.youtube.com/watch?v={video_id}",
+                }
+            )
         return videos

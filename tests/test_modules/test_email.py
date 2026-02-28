@@ -2,8 +2,7 @@
 Tests for email intelligence modules.
 """
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -16,12 +15,14 @@ class TestEmailValidator:
     @pytest.mark.asyncio
     async def test_validate_valid_email(self):
         from app.modules.email.validator import EmailValidatorModule
+
         module = EmailValidatorModule()
         assert await module.validate("user@example.com", TargetType.EMAIL) is True
 
     @pytest.mark.asyncio
     async def test_validate_invalid_email(self):
         from app.modules.email.validator import EmailValidatorModule
+
         module = EmailValidatorModule()
         assert await module.validate("not-an-email", TargetType.EMAIL) is False
         assert await module.validate("", TargetType.EMAIL) is False
@@ -30,6 +31,7 @@ class TestEmailValidator:
     @pytest.mark.asyncio
     async def test_metadata(self):
         from app.modules.email.validator import EmailValidatorModule
+
         module = EmailValidatorModule()
         meta = module.metadata()
         assert meta.name == "email_validator"
@@ -39,6 +41,7 @@ class TestEmailValidator:
     @pytest.mark.asyncio
     async def test_run_with_mocked_dns(self):
         from app.modules.email.validator import EmailValidatorModule
+
         module = EmailValidatorModule()
 
         # Mock DNS resolution to avoid network calls
@@ -56,6 +59,7 @@ class TestEmailValidator:
     @pytest.mark.asyncio
     async def test_run_disposable_email(self):
         from app.modules.email.validator import EmailValidatorModule
+
         module = EmailValidatorModule()
 
         with patch("dns.resolver.resolve") as mock_resolve:
@@ -69,6 +73,7 @@ class TestEmailValidator:
     @pytest.mark.asyncio
     async def test_run_dns_error_graceful(self):
         from app.modules.email.validator import EmailValidatorModule
+
         module = EmailValidatorModule()
 
         with patch("dns.resolver.resolve", side_effect=Exception("Network unreachable")):
@@ -85,6 +90,7 @@ class TestEmailPermutator:
     @pytest.mark.asyncio
     async def test_validate(self):
         from app.modules.email.permutator import EmailPermutatorModule
+
         module = EmailPermutatorModule()
         assert await module.validate("John Doe", TargetType.PERSON) is True
         assert await module.validate("J", TargetType.PERSON) is False
@@ -92,6 +98,7 @@ class TestEmailPermutator:
     @pytest.mark.asyncio
     async def test_run_generates_permutations(self):
         from app.modules.email.permutator import EmailPermutatorModule
+
         module = EmailPermutatorModule()
 
         result = await module.run(
@@ -110,6 +117,7 @@ class TestEmailPermutator:
     @pytest.mark.asyncio
     async def test_metadata(self):
         from app.modules.email.permutator import EmailPermutatorModule
+
         module = EmailPermutatorModule()
         meta = module.metadata()
         assert meta.name == "email_permutator"
@@ -122,6 +130,7 @@ class TestHIBPBreachChecker:
     @pytest.mark.asyncio
     async def test_metadata(self):
         from app.modules.email.breach_checker import HIBPBreachCheckerModule
+
         module = HIBPBreachCheckerModule()
         meta = module.metadata()
         assert meta.name == "hibp_breach_checker"
@@ -130,6 +139,7 @@ class TestHIBPBreachChecker:
     @pytest.mark.asyncio
     async def test_skip_without_api_key(self, monkeypatch):
         from app.modules.email.breach_checker import HIBPBreachCheckerModule
+
         monkeypatch.delenv("HIBP_API_KEY", raising=False)
 
         module = HIBPBreachCheckerModule()
@@ -144,6 +154,7 @@ class TestHIBPBreachChecker:
         monkeypatch.setenv("HIBP_API_KEY", "test_key_12345")
 
         from app.modules.email.breach_checker import HIBPBreachCheckerModule
+
         module = HIBPBreachCheckerModule()
 
         breach_data = [
@@ -166,6 +177,7 @@ class TestHunterModule:
     @pytest.mark.asyncio
     async def test_metadata(self):
         from app.modules.email.hunter import HunterModule
+
         module = HunterModule()
         meta = module.metadata()
         assert meta.name == "hunter_io"
@@ -174,6 +186,7 @@ class TestHunterModule:
     @pytest.mark.asyncio
     async def test_validate_domain(self):
         from app.modules.email.hunter import HunterModule
+
         module = HunterModule()
         assert await module.validate("example.com", TargetType.DOMAIN) is True
         assert await module.validate("", TargetType.DOMAIN) is False
@@ -182,6 +195,7 @@ class TestHunterModule:
     async def test_skip_without_api_key(self, monkeypatch):
         monkeypatch.delenv("HUNTER_API_KEY", raising=False)
         from app.modules.email.hunter import HunterModule
+
         module = HunterModule()
         result = await module.run("example.com", TargetType.DOMAIN)
         assert result is not None

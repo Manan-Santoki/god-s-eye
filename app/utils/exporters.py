@@ -6,7 +6,6 @@ All exports use Jinja2 templates from data/templates/.
 import csv
 import json
 from datetime import datetime
-from io import StringIO
 from pathlib import Path
 from typing import Any
 
@@ -67,12 +66,15 @@ def export_pdf(html_path: Path, output_path: Path) -> Path:
     """Convert HTML report to PDF using WeasyPrint."""
     try:
         from weasyprint import HTML
+
         output_path.parent.mkdir(parents=True, exist_ok=True)
         HTML(filename=str(html_path)).write_pdf(str(output_path))
         logger.info("exported_pdf", path=str(output_path))
         return output_path
     except ImportError:
-        logger.warning("weasyprint_not_installed", msg="PDF export requires: pip install weasyprint")
+        logger.warning(
+            "weasyprint_not_installed", msg="PDF export requires: pip install weasyprint"
+        )
         raise
     except Exception as e:
         logger.error("pdf_export_failed", error=str(e))
@@ -167,7 +169,6 @@ def _basic_html_report(data: dict[str, Any]) -> str:
 
 async def export_all(session, ai_content: str | None = None) -> dict[str, Path]:
     """Export scan in all configured formats. Returns dict of format: Path."""
-    from app.core.config import settings
 
     reports_dir = session.reports_dir
     results: dict[str, Path] = {}

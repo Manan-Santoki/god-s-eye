@@ -296,9 +296,7 @@ settings = Settings()
 module_config: dict[str, Any] = Settings.load_module_config()
 
 
-def get_module_setting(
-    category: str, module: str, key: str, default: Any = None
-) -> Any:
+def get_module_setting(category: str, module: str, key: str, default: Any = None) -> Any:
     """
     Convenience accessor for nested module config.
 
@@ -306,9 +304,4 @@ def get_module_setting(
         enabled = get_module_setting("email", "validator", "enabled", True)
         max_posts = get_module_setting("social", "instagram", "max_posts", 50)
     """
-    return (
-        module_config.get("modules", {})
-        .get(category, {})
-        .get(module, {})
-        .get(key, default)
-    )
+    return module_config.get("modules", {}).get(category, {}).get(module, {}).get(key, default)

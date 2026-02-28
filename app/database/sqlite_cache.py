@@ -11,7 +11,6 @@ Database file: data/cache/osint_cache.db
 """
 
 import json
-import logging
 import os
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -343,7 +342,9 @@ class SQLiteCache:
         """List recent scans, optionally filtered by status."""
         assert self._db is not None
         if status:
-            query = "SELECT metadata_json FROM scans WHERE status = ? ORDER BY started_at DESC LIMIT ?"
+            query = (
+                "SELECT metadata_json FROM scans WHERE status = ? ORDER BY started_at DESC LIMIT ?"
+            )
             params = (status, limit)
         else:
             query = "SELECT metadata_json FROM scans ORDER BY started_at DESC LIMIT ?"

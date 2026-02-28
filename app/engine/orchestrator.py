@@ -14,8 +14,8 @@ from __future__ import annotations
 import asyncio
 import time
 from collections.abc import Awaitable, Callable
-from urllib.parse import urlparse
 from typing import Any
+from urllib.parse import urlparse
 
 from rich.console import Console
 from rich.progress import (
@@ -471,7 +471,9 @@ class Orchestrator:
         for module in image_preload_modules:
             await run_one(module)
 
-        await asyncio.gather(*(run_one(module) for module in remaining_modules), return_exceptions=False)
+        await asyncio.gather(
+            *(run_one(module) for module in remaining_modules), return_exceptions=False
+        )
         session.save_metadata()
         logger.info("phase_completed", request_id=session.request_id, phase=phase.name)
 
@@ -586,7 +588,12 @@ class Orchestrator:
 
         max_targets = max(
             1,
-            int(get_module_setting("domain", "permutator", "max_registered_domains_to_deep_scan", 25) or 25),
+            int(
+                get_module_setting(
+                    "domain", "permutator", "max_registered_domains_to_deep_scan", 25
+                )
+                or 25
+            ),
         )
         return [
             self._build_context_for_target(meta, session, target, TargetType.DOMAIN, candidates)
@@ -690,7 +697,8 @@ class Orchestrator:
             execution_time_ms=total_elapsed,
             findings_count=total_findings,
             data={
-                "targets_scanned": [item["target"] for item in successes] + [item["target"] for item in failures],
+                "targets_scanned": [item["target"] for item in successes]
+                + [item["target"] for item in failures],
                 "successful_targets": [item["target"] for item in successes],
                 "failed_targets": failures,
                 "results_by_target": {item["target"]: item["data"] for item in successes},
@@ -700,7 +708,9 @@ class Orchestrator:
             warnings=aggregated_warnings,
         )
 
-    async def _run_ai_phase(self, session: ScanSession, progress: Progress, task_id: TaskID) -> None:
+    async def _run_ai_phase(
+        self, session: ScanSession, progress: Progress, task_id: TaskID
+    ) -> None:
         """Run correlation, timeline, and risk scoring."""
         steps = [
             ("correlation", CorrelationEngine().run),
@@ -743,7 +753,9 @@ class Orchestrator:
                 )
         session.save_metadata()
 
-    async def _run_report_phase(self, session: ScanSession, progress: Progress, task_id: TaskID) -> None:
+    async def _run_report_phase(
+        self, session: ScanSession, progress: Progress, task_id: TaskID
+    ) -> None:
         """Generate report artifacts for the session."""
         await self._publish_progress(
             session,
@@ -789,7 +801,9 @@ class Orchestrator:
             for email in session.context.get("discovered_emails", []):
                 email_id = await client.create_email(email, {"request_id": session.request_id})
                 if primary_node_id and session.target_type != TargetType.EMAIL:
-                    await client.link_nodes(primary_node_id, email_id, "HAS_EMAIL", {"request_id": session.request_id})
+                    await client.link_nodes(
+                        primary_node_id, email_id, "HAS_EMAIL", {"request_id": session.request_id}
+                    )
 
             for username in session.context.get("discovered_usernames", []):
                 username_id = await client.create_username(
@@ -798,17 +812,26 @@ class Orchestrator:
                     {"request_id": session.request_id},
                 )
                 if primary_node_id and session.target_type != TargetType.USERNAME:
-                    await client.link_nodes(primary_node_id, username_id, "HAS_USERNAME", {"request_id": session.request_id})
+                    await client.link_nodes(
+                        primary_node_id,
+                        username_id,
+                        "HAS_USERNAME",
+                        {"request_id": session.request_id},
+                    )
 
             for domain in session.context.get("discovered_domains", []):
                 domain_id = await client.create_domain(domain, {"request_id": session.request_id})
                 if primary_node_id and session.target_type != TargetType.DOMAIN:
-                    await client.link_nodes(primary_node_id, domain_id, "HAS_DOMAIN", {"request_id": session.request_id})
+                    await client.link_nodes(
+                        primary_node_id, domain_id, "HAS_DOMAIN", {"request_id": session.request_id}
+                    )
 
             for ip in session.context.get("discovered_ips", []):
                 ip_id = await client.create_ip(ip, {"request_id": session.request_id})
                 if primary_node_id and session.target_type != TargetType.IP:
-                    await client.link_nodes(primary_node_id, ip_id, "HAS_IP", {"request_id": session.request_id})
+                    await client.link_nodes(
+                        primary_node_id, ip_id, "HAS_IP", {"request_id": session.request_id}
+                    )
 
             target_email_id = None
             if session.target_type == TargetType.EMAIL:
@@ -819,12 +842,19 @@ class Orchestrator:
                     {"request_id": session.request_id},
                 )
                 if primary_node_id:
-                    await client.link_nodes(primary_node_id, target_email_id, "HAS_EMAIL", {"request_id": session.request_id})
+                    await client.link_nodes(
+                        primary_node_id,
+                        target_email_id,
+                        "HAS_EMAIL",
+                        {"request_id": session.request_id},
+                    )
 
             for module_data in session.context.get("module_results", {}).values():
                 if not isinstance(module_data, dict):
                     continue
-                breach_entries = module_data.get("breaches") or module_data.get("breach_details") or []
+                breach_entries = (
+                    module_data.get("breaches") or module_data.get("breach_details") or []
+                )
                 for breach in breach_entries if isinstance(breach_entries, list) else []:
                     if not isinstance(breach, dict):
                         continue
@@ -833,10 +863,18 @@ class Orchestrator:
                         continue
                     breach_id = await client.create_breach(
                         breach_name,
-                        {"request_id": session.request_id, "breach_date": breach.get("breach_date") or breach.get("BreachDate")},
+                        {
+                            "request_id": session.request_id,
+                            "breach_date": breach.get("breach_date") or breach.get("BreachDate"),
+                        },
                     )
                     if target_email_id:
-                        await client.link_nodes(target_email_id, breach_id, "EXPOSED_IN", {"request_id": session.request_id})
+                        await client.link_nodes(
+                            target_email_id,
+                            breach_id,
+                            "EXPOSED_IN",
+                            {"request_id": session.request_id},
+                        )
         except Exception as exc:
             logger.warning("graph_sync_failed", request_id=session.request_id, error=str(exc))
         finally:
@@ -849,7 +887,9 @@ class Orchestrator:
         if session.target_type == TargetType.EMAIL:
             return await client.create_email(session.target, {"request_id": session.request_id})
         if session.target_type == TargetType.USERNAME:
-            return await client.create_username(session.target, "unknown", {"request_id": session.request_id})
+            return await client.create_username(
+                session.target, "unknown", {"request_id": session.request_id}
+            )
         if session.target_type == TargetType.DOMAIN:
             return await client.create_domain(session.target, {"request_id": session.request_id})
         if session.target_type == TargetType.IP:
@@ -872,7 +912,9 @@ class Orchestrator:
         }
         await self._progress_callback(data)
 
-    def _extract_entities(self, session: ScanSession, module_name: str, data: dict[str, Any]) -> None:
+    def _extract_entities(
+        self, session: ScanSession, module_name: str, data: dict[str, Any]
+    ) -> None:
         """Extract discovered entities from module results and add them to context."""
         if not isinstance(data, dict):
             return
@@ -901,7 +943,13 @@ class Orchestrator:
                             if username := item.get("username") or item.get("handle"):
                                 session.add_discovered("username", username)
 
-        for key in ("domain", "domains", "discovered_domains", "registered_domain", "registrar_domain"):
+        for key in (
+            "domain",
+            "domains",
+            "discovered_domains",
+            "registered_domain",
+            "registrar_domain",
+        ):
             if domains := data.get(key):
                 if isinstance(domains, str):
                     session.add_discovered("domain", domains)
@@ -1002,13 +1050,25 @@ class Orchestrator:
             return
 
         if "github.com" in host and first not in {
-            "features", "topics", "orgs", "organizations", "settings", "marketplace", "pricing",
+            "features",
+            "topics",
+            "orgs",
+            "organizations",
+            "settings",
+            "marketplace",
+            "pricing",
         }:
             session.add_discovered("username", first)
             return
 
         if ("twitter.com" in host or "x.com" in host) and first not in {
-            "home", "search", "explore", "i", "settings", "messages", "compose",
+            "home",
+            "search",
+            "explore",
+            "i",
+            "settings",
+            "messages",
+            "compose",
         }:
             session.add_discovered("username", first.lstrip("@"))
             return
@@ -1017,7 +1077,13 @@ class Orchestrator:
             session.add_discovered("username", parts[1])
             return
 
-        if "facebook.com" in host and first not in {"public", "profile.php", "login", "watch", "marketplace"}:
+        if "facebook.com" in host and first not in {
+            "public",
+            "profile.php",
+            "login",
+            "watch",
+            "marketplace",
+        }:
             session.add_discovered("username", first)
             return
 
@@ -1089,7 +1155,9 @@ class Orchestrator:
             )
 
         console.print(table)
-        console.print(f"[dim]Target: [bold]{session.target}[/bold] | Type: {session.target_type.value}[/dim]\n")
+        console.print(
+            f"[dim]Target: [bold]{session.target}[/bold] | Type: {session.target_type.value}[/dim]\n"
+        )
 
     def _build_progress(self, disable: bool = False) -> Progress:
         """Build a Rich progress display."""

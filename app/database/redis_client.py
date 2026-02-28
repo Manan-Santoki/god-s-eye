@@ -93,9 +93,7 @@ class RedisClient:
 
     # ── Scan Progress ────────────────────────────────────────────
 
-    async def set_scan_progress(
-        self, request_id: str, data: dict[str, Any]
-    ) -> None:
+    async def set_scan_progress(self, request_id: str, data: dict[str, Any]) -> None:
         """Store real-time scan progress (expires after 24h)."""
         key = f"progress:{request_id}"
         await self.set(key, data, ttl_seconds=86400)
@@ -117,9 +115,7 @@ class RedisClient:
         """Push a job to the queue (for distributed worker mode)."""
         await self._r().lpush(queue_name, json.dumps(job))
 
-    async def dequeue_job(
-        self, queue_name: str, timeout: int = 5
-    ) -> dict[str, Any] | None:
+    async def dequeue_job(self, queue_name: str, timeout: int = 5) -> dict[str, Any] | None:
         """
         Pop a job from the queue (blocking with timeout).
 
@@ -137,9 +133,7 @@ class RedisClient:
 
     # ── Rate Limiting (distributed) ──────────────────────────────
 
-    async def increment_counter(
-        self, key: str, ttl_seconds: int = 60
-    ) -> int:
+    async def increment_counter(self, key: str, ttl_seconds: int = 60) -> int:
         """
         Atomic increment with TTL — for distributed rate limiting.
 

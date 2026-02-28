@@ -33,26 +33,59 @@ from app.modules.base import BaseModule, ModuleMetadata, ModuleResult
 
 logger = get_logger(__name__)
 
-MAX_PROFILES = 5          # Max profiles to deep-scrape per search
-SEARCH_TIMEOUT = 20_000   # ms to wait for search results page
+MAX_PROFILES = 5  # Max profiles to deep-scrape per search
+SEARCH_TIMEOUT = 20_000  # ms to wait for search results page
 PROFILE_TIMEOUT = 25_000  # ms to wait for a profile page to load
-LOGIN_TIMEOUT  = 30_000   # ms to wait for login elements
+LOGIN_TIMEOUT = 30_000  # ms to wait for login elements
 
 # LinkedIn selectors (multiple fallbacks per field)
-_SEL_USERNAME   = ["input#username", "input[name='session_key']", "input[autocomplete='username']"]
-_SEL_PASSWORD   = ["input#password", "input[name='session_password']", "input[autocomplete='current-password']"]
-_SEL_SUBMIT     = ["button[type='submit']", "button[data-litms-control-urn*='sign-in']", ".login__form button"]
-_SEL_NAV        = ["nav[aria-label='Primary Navigation']", ".global-nav", "[data-test-global-nav]", ".authentication-outlet"]
+_SEL_USERNAME = ["input#username", "input[name='session_key']", "input[autocomplete='username']"]
+_SEL_PASSWORD = [
+    "input#password",
+    "input[name='session_password']",
+    "input[autocomplete='current-password']",
+]
+_SEL_SUBMIT = [
+    "button[type='submit']",
+    "button[data-litms-control-urn*='sign-in']",
+    ".login__form button",
+]
+_SEL_NAV = [
+    "nav[aria-label='Primary Navigation']",
+    ".global-nav",
+    "[data-test-global-nav]",
+    ".authentication-outlet",
+]
 _SEL_PROFILE_H1 = ["h1.text-heading-xlarge", "h1.inline.t-24", "h1"]
-_SEL_HEADLINE   = [".text-body-medium.break-words", "div.text-body-medium", ".pv-text-details__left-panel h2"]
-_SEL_LOCATION   = [".text-body-small.inline.t-black--light", ".pv-text-details__left-panel span:nth-child(2)"]
-_SEL_ABOUT      = ["#about ~ .pvs-list__outer-container span[aria-hidden='true']",
-                   "#about ~ div span.visually-hidden", "#about ~ div .inline-show-more-text"]
-_SEL_CONNECT    = [".pv-top-card-profile-picture__image", "img.profile-photo-edit__preview", "img.pv-top-card-profile-picture__image"]
+_SEL_HEADLINE = [
+    ".text-body-medium.break-words",
+    "div.text-body-medium",
+    ".pv-text-details__left-panel h2",
+]
+_SEL_LOCATION = [
+    ".text-body-small.inline.t-black--light",
+    ".pv-text-details__left-panel span:nth-child(2)",
+]
+_SEL_ABOUT = [
+    "#about ~ .pvs-list__outer-container span[aria-hidden='true']",
+    "#about ~ div span.visually-hidden",
+    "#about ~ div .inline-show-more-text",
+]
+_SEL_CONNECT = [
+    ".pv-top-card-profile-picture__image",
+    "img.profile-photo-edit__preview",
+    "img.pv-top-card-profile-picture__image",
+]
 
 # Pages where we're definitely NOT logged in
-_LOGIN_URL_TOKENS = ("accounts/login", "/login", "/checkpoint", "/challenge",
-                     "uas/authenticate", "authwall")
+_LOGIN_URL_TOKENS = (
+    "accounts/login",
+    "/login",
+    "/checkpoint",
+    "/challenge",
+    "uas/authenticate",
+    "authwall",
+)
 
 
 class LinkedInScraper(BaseModule):
@@ -96,13 +129,16 @@ class LinkedInScraper(BaseModule):
                 module_name=self.metadata().name,
                 target=target,
                 success=False,
-                errors=["Cannot determine a search term for LinkedIn — provide --name or email with name"],
+                errors=[
+                    "Cannot determine a search term for LinkedIn — provide --name or email with name"
+                ],
             )
 
         page = None
         factory = None
         try:
             from app.engine.browser import BrowserFactory
+
             factory = await BrowserFactory.create()
             page = await factory.new_page(persist_session="linkedin")
 
@@ -223,7 +259,9 @@ class LinkedInScraper(BaseModule):
             raise LoginError("linkedin_scraper", "linkedin")
         await password_el.click()
         await password_el.fill("")
-        await factory.human_type(page, _SEL_PASSWORD[0], settings.linkedin_password.get_secret_value())
+        await factory.human_type(
+            page, _SEL_PASSWORD[0], settings.linkedin_password.get_secret_value()
+        )
 
         # Submit
         submit_el = await self._wait_for_any(page, _SEL_SUBMIT, 5000)
@@ -241,7 +279,11 @@ class LinkedInScraper(BaseModule):
             raise CaptchaError("linkedin_scraper", page.url)
         if "add-phone" in current or "email-verification" in current or "2step" in current:
             # Try to dismiss "skip" button
-            for skip_sel in ["a[data-control-name='dismiss']", "button:has-text('Skip')", "a:has-text('Skip')"]:
+            for skip_sel in [
+                "a[data-control-name='dismiss']",
+                "button:has-text('Skip')",
+                "a:has-text('Skip')",
+            ]:
                 try:
                     skip_btn = page.locator(skip_sel).first
                     if await skip_btn.count() > 0:
@@ -364,7 +406,9 @@ class LinkedInScraper(BaseModule):
                 return None
 
             # Screenshot — ONLY on real /in/ pages
-            screenshot_path = await self._take_profile_screenshot(page, factory, context, profile_url)
+            screenshot_path = await self._take_profile_screenshot(
+                page, factory, context, profile_url
+            )
 
             # Extract core fields
             name = await self._first_text(page, _SEL_PROFILE_H1)
@@ -439,7 +483,9 @@ class LinkedInScraper(BaseModule):
         items: list[dict[str, Any]] = []
         try:
             # LinkedIn renders sections with pvs-list
-            section_locator = page.locator(f"{section_id} ~ .pvs-list__outer-container, {section_id} + div .pvs-list")
+            section_locator = page.locator(
+                f"{section_id} ~ .pvs-list__outer-container, {section_id} + div .pvs-list"
+            )
             entry_locator = section_locator.locator(".pvs-list__item--line-separated").first
             if await entry_locator.count() == 0:
                 # Try alternate container
@@ -486,7 +532,9 @@ class LinkedInScraper(BaseModule):
         info: dict[str, Any] = {}
         try:
             # Click "Contact info" link
-            contact_link = page.locator("a[href*='/overlay/contact-info/'], a:has-text('Contact info')").first
+            contact_link = page.locator(
+                "a[href*='/overlay/contact-info/'], a:has-text('Contact info')"
+            ).first
             if await contact_link.count() > 0:
                 await factory.human_click(page, "a[href*='/overlay/contact-info/']")
                 await asyncio.sleep(2)
@@ -503,7 +551,9 @@ class LinkedInScraper(BaseModule):
                         info["phone"] = (await phone_el.inner_text()).strip()
                     # Websites
                     website_els = await modal.locator("section.ci-websites a").all()
-                    info["websites"] = [(await el.get_attribute("href") or "").strip() for el in website_els if el]
+                    info["websites"] = [
+                        (await el.get_attribute("href") or "").strip() for el in website_els if el
+                    ]
 
                 # Close modal
                 close_btn = page.locator("button[aria-label='Dismiss']").first

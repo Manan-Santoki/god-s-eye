@@ -73,7 +73,9 @@ class Crawl4AICrawlerModule(BaseModule):
 
         source_names = self._get_source_names()
         module_results = context.get("module_results", {})
-        available_sources = sorted(module_results.keys()) if isinstance(module_results, dict) else []
+        available_sources = (
+            sorted(module_results.keys()) if isinstance(module_results, dict) else []
+        )
         effective_sources = self._resolve_effective_sources(module_results, source_names)
         candidates = self._collect_search_urls(module_results, effective_sources)
         candidates = self._merge_url_candidates(
@@ -86,7 +88,9 @@ class Crawl4AICrawlerModule(BaseModule):
             raw_module_results = self._load_raw_module_results(context, effective_sources)
             if raw_module_results:
                 raw_data_fallback_used = True
-                effective_sources = self._resolve_effective_sources(raw_module_results, effective_sources)
+                effective_sources = self._resolve_effective_sources(
+                    raw_module_results, effective_sources
+                )
                 candidates = self._collect_search_urls(raw_module_results, effective_sources)
                 candidates = self._merge_url_candidates(
                     candidates,
@@ -121,7 +125,9 @@ class Crawl4AICrawlerModule(BaseModule):
         warnings: list[str] = []
 
         try:
-            crawled_pages = await self._crawl_urls(base_url=base_url, urls=selected, context=context)
+            crawled_pages = await self._crawl_urls(
+                base_url=base_url, urls=selected, context=context
+            )
         except RateLimitError:
             errors.append("Crawl4AI rate limit exceeded")
             crawled_pages = []
@@ -164,7 +170,9 @@ class Crawl4AICrawlerModule(BaseModule):
         )
 
     def _get_base_url(self) -> str | None:
-        configured = settings.crawl4ai_base_url or get_module_setting("web", "crawl4ai", "base_url", None)
+        configured = settings.crawl4ai_base_url or get_module_setting(
+            "web", "crawl4ai", "base_url", None
+        )
         if not configured:
             return None
         return str(configured).rstrip("/")
@@ -393,7 +401,9 @@ class Crawl4AICrawlerModule(BaseModule):
 
         return candidates
 
-    def _extract_raw_discovered_urls(self, raw_module_results: dict[str, Any]) -> list[dict[str, Any]]:
+    def _extract_raw_discovered_urls(
+        self, raw_module_results: dict[str, Any]
+    ) -> list[dict[str, Any]]:
         candidates: list[dict[str, Any]] = []
         for source_name, data in raw_module_results.items():
             if not isinstance(data, dict):
@@ -542,7 +552,9 @@ class Crawl4AICrawlerModule(BaseModule):
                     "markdown": markdown,
                     "cleaned_html": cleaned_html,
                     "links": self._extract_links(item),
-                    "metadata": item.get("metadata", {}) if isinstance(item.get("metadata"), dict) else {},
+                    "metadata": item.get("metadata", {})
+                    if isinstance(item.get("metadata"), dict)
+                    else {},
                 }
             )
 
@@ -554,7 +566,9 @@ class Crawl4AICrawlerModule(BaseModule):
         if isinstance(value, str):
             return value
         if isinstance(value, dict):
-            return str(value.get("raw_markdown") or value.get("fit_markdown") or value.get("content") or "")
+            return str(
+                value.get("raw_markdown") or value.get("fit_markdown") or value.get("content") or ""
+            )
         return ""
 
     @staticmethod

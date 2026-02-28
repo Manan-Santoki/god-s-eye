@@ -209,7 +209,9 @@ class BrowserFactory:
             "user_agent": ua,
             "viewport": {"width": viewport_w, "height": viewport_h},
             "locale": "en-US",
-            "timezone_id": random.choice(["America/New_York", "America/Chicago", "America/Los_Angeles", "Europe/London"]),
+            "timezone_id": random.choice(
+                ["America/New_York", "America/Chicago", "America/Los_Angeles", "Europe/London"]
+            ),
             "geolocation": None,
             "permissions": [],
             "extra_http_headers": {
@@ -223,7 +225,9 @@ class BrowserFactory:
             context_options["proxy"] = {"server": proxy}
 
         # Load saved session state if requested
-        session_file = self._sessions_dir / f"{persist_session}_state.json" if persist_session else None
+        session_file = (
+            self._sessions_dir / f"{persist_session}_state.json" if persist_session else None
+        )
         if session_file and session_file.exists():
             try:
                 with open(session_file) as f:
@@ -254,9 +258,11 @@ class BrowserFactory:
             if not persist_session:
                 await context.route(
                     "**/*.{gif,woff,woff2,ttf,mp4,webm,otf}",
-                    lambda route: route.abort()
-                    if route.request.resource_type in ("media", "font")
-                    else route.continue_(),
+                    lambda route: (
+                        route.abort()
+                        if route.request.resource_type in ("media", "font")
+                        else route.continue_()
+                    ),
                 )
 
             page = await context.new_page()

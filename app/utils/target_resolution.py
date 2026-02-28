@@ -21,7 +21,7 @@ def build_target_candidates(
     inputs = dict(target_inputs or {})
     ctx = dict(context or {})
 
-    candidates: "OrderedDict[TargetType, list[str]]" = OrderedDict(
+    candidates: OrderedDict[TargetType, list[str]] = OrderedDict(
         (target_type, [])
         for target_type in (
             TargetType.PERSON,

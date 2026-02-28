@@ -108,12 +108,8 @@ class OpenCorporatesModule(BaseModule):
             },
         ) as session:
             # Run company search and officer search concurrently
-            company_task = self._search_companies(
-                session, term, api_token, warnings, errors
-            )
-            officer_task = self._search_officers(
-                session, term, api_token, warnings, errors
-            )
+            company_task = self._search_companies(session, term, api_token, warnings, errors)
+            officer_task = self._search_officers(session, term, api_token, warnings, errors)
 
             company_results, officer_results = await asyncio.gather(
                 company_task,
@@ -152,9 +148,7 @@ class OpenCorporatesModule(BaseModule):
                     for c in companies_to_detail
                     if c.get("jurisdiction_code") and c.get("company_number")
                 ]
-                detail_results = await asyncio.gather(
-                    *detail_tasks, return_exceptions=True
-                )
+                detail_results = await asyncio.gather(*detail_tasks, return_exceptions=True)
 
             # Merge detail data back into company records
             for i, detail in enumerate(detail_results):
@@ -234,7 +228,7 @@ class OpenCorporatesModule(BaseModule):
             data = await resp.json(content_type=None)
 
         # Navigate the nested OpenCorporates response structure
-        results_obj = (data.get("results") or {})
+        results_obj = data.get("results") or {}
         companies_raw = results_obj.get("companies") or []
 
         companies: list[dict[str, Any]] = []
@@ -403,14 +397,16 @@ class OpenCorporatesModule(BaseModule):
             officer_data = item.get("officer") if isinstance(item, dict) else item
             if not isinstance(officer_data, dict):
                 continue
-            officers.append({
-                "name": officer_data.get("name") or "",
-                "role": officer_data.get("position") or "",
-                "start_date": officer_data.get("start_date") or "",
-                "end_date": officer_data.get("end_date") or "",
-                "nationality": officer_data.get("nationality") or "",
-                "occupation": officer_data.get("occupation") or "",
-            })
+            officers.append(
+                {
+                    "name": officer_data.get("name") or "",
+                    "role": officer_data.get("position") or "",
+                    "start_date": officer_data.get("start_date") or "",
+                    "end_date": officer_data.get("end_date") or "",
+                    "nationality": officer_data.get("nationality") or "",
+                    "occupation": officer_data.get("occupation") or "",
+                }
+            )
 
         return {
             "name": raw.get("name") or "",

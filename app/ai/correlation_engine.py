@@ -98,8 +98,14 @@ def _extract_locations_from_data(data: Any) -> list[str]:
     def _walk(obj: Any) -> None:
         if isinstance(obj, dict):
             for key in (
-                "location", "city", "country", "country_name", "region",
-                "state", "address", "gps_address",
+                "location",
+                "city",
+                "country",
+                "country_name",
+                "region",
+                "state",
+                "address",
+                "gps_address",
             ):
                 val = obj.get(key)
                 if isinstance(val, str) and val.strip():
@@ -120,7 +126,14 @@ def _extract_names_from_data(data: Any) -> list[str]:
 
     def _walk(obj: Any) -> None:
         if isinstance(obj, dict):
-            for key in ("name", "display_name", "full_name", "real_name", "owner", "registrant_name"):
+            for key in (
+                "name",
+                "display_name",
+                "full_name",
+                "real_name",
+                "owner",
+                "registrant_name",
+            ):
                 val = obj.get(key)
                 if isinstance(val, str) and val.strip() and " " in val.strip():
                     found.add(val.strip())
@@ -159,6 +172,7 @@ def _score_username_similarity(u1: str, u2: str) -> float:
         if b1 in b2 or b2 in b1:
             overlap = min(len(b1), len(b2)) / max(len(b1), len(b2))
             return 0.6 + (0.3 * overlap)
+
     # Simple character overlap (Jaccard on character bigrams)
     def bigrams(s: str) -> set[str]:
         return {s[i : i + 2] for i in range(len(s) - 1)} if len(s) > 1 else set()
@@ -228,7 +242,9 @@ class CorrelationEngine:
             try:
                 llm_insights = await self._run_llm_correlation(
                     session.target,
-                    session.target_type.value if hasattr(session.target_type, "value") else str(session.target_type),
+                    session.target_type.value
+                    if hasattr(session.target_type, "value")
+                    else str(session.target_type),
                     module_data,
                 )
             except Exception as exc:
@@ -304,7 +320,10 @@ class CorrelationEngine:
                 isinstance(data, dict)
                 and "data" in data
                 and isinstance(data.get("data"), dict)
-                and (set(data.keys()) <= envelope_keys or any(key in data for key in ("success", "errors", "warnings")))
+                and (
+                    set(data.keys()) <= envelope_keys
+                    or any(key in data for key in ("success", "errors", "warnings"))
+                )
             ):
                 normalized[module_name] = data["data"]
             else:
@@ -314,9 +333,7 @@ class CorrelationEngine:
     def _ai_enabled(self, session: ScanSession) -> bool:
         return bool(session.context.get("enable_ai_correlation", settings.enable_ai_correlation))
 
-    def _build_entity_map(
-        self, module_data: dict[str, Any]
-    ) -> dict[str, dict[str, Any]]:
+    def _build_entity_map(self, module_data: dict[str, Any]) -> dict[str, dict[str, Any]]:
         """
         Build a unified entity map: entity_value -> metadata dict.
 
@@ -388,20 +405,20 @@ class CorrelationEngine:
         # ── Same email on multiple modules ─────────────────────────
         for email_meta in by_type.get("email", []):
             if email_meta["count"] >= 2:
-                connections.append({
-                    "connection_type": "same_email_multiple_platforms",
-                    "entities": [email_meta["value"]],
-                    "confidence": min(0.95, 0.6 + 0.1 * email_meta["count"]),
-                    "description": (
-                        f"Email '{email_meta['value']}' found in "
-                        f"{email_meta['count']} modules: "
-                        f"{', '.join(email_meta['modules'])}"
-                    ),
-                    "source_modules": email_meta["modules"],
-                    "evidence": [
-                        f"Found by: {m}" for m in email_meta["modules"]
-                    ],
-                })
+                connections.append(
+                    {
+                        "connection_type": "same_email_multiple_platforms",
+                        "entities": [email_meta["value"]],
+                        "confidence": min(0.95, 0.6 + 0.1 * email_meta["count"]),
+                        "description": (
+                            f"Email '{email_meta['value']}' found in "
+                            f"{email_meta['count']} modules: "
+                            f"{', '.join(email_meta['modules'])}"
+                        ),
+                        "source_modules": email_meta["modules"],
+                        "evidence": [f"Found by: {m}" for m in email_meta["modules"]],
+                    }
+                )
 
         # ── Username pattern matching ──────────────────────────────
         usernames = [m["value"] for m in by_type.get("username", [])]
@@ -414,25 +431,27 @@ class CorrelationEngine:
                 seen_pairs.add(pair)
                 score = _score_username_similarity(u1, u2)
                 if score >= 0.6:
-                    connections.append({
-                        "connection_type": "username_pattern_match",
-                        "entities": [u1, u2],
-                        "confidence": round(score, 3),
-                        "description": (
-                            f"Usernames '{u1}' and '{u2}' share a common base pattern "
-                            f"(similarity: {score:.0%})"
-                        ),
-                        "source_modules": list(
-                            set(
-                                entity_map.get(f"username:{u1}", {}).get("modules", [])
-                                + entity_map.get(f"username:{u2}", {}).get("modules", [])
-                            )
-                        ),
-                        "evidence": [
-                            f"Base of '{u1}': '{_username_base(u1)}'",
-                            f"Base of '{u2}': '{_username_base(u2)}'",
-                        ],
-                    })
+                    connections.append(
+                        {
+                            "connection_type": "username_pattern_match",
+                            "entities": [u1, u2],
+                            "confidence": round(score, 3),
+                            "description": (
+                                f"Usernames '{u1}' and '{u2}' share a common base pattern "
+                                f"(similarity: {score:.0%})"
+                            ),
+                            "source_modules": list(
+                                set(
+                                    entity_map.get(f"username:{u1}", {}).get("modules", [])
+                                    + entity_map.get(f"username:{u2}", {}).get("modules", [])
+                                )
+                            ),
+                            "evidence": [
+                                f"Base of '{u1}': '{_username_base(u1)}'",
+                                f"Base of '{u2}': '{_username_base(u2)}'",
+                            ],
+                        }
+                    )
 
         # ── Location consistency ───────────────────────────────────
         locations = [m["value"] for m in by_type.get("location", [])]
@@ -446,45 +465,53 @@ class CorrelationEngine:
             for loc in locations:
                 # Very rough heuristic: check if it looks like a known country
                 for country in (
-                    "United States", "USA", "UK", "United Kingdom",
-                    "Germany", "France", "Russia", "China", "India",
-                    "Canada", "Australia", "Brazil",
+                    "United States",
+                    "USA",
+                    "UK",
+                    "United Kingdom",
+                    "Germany",
+                    "France",
+                    "Russia",
+                    "China",
+                    "India",
+                    "Canada",
+                    "Australia",
+                    "Brazil",
                 ):
                     if country.lower() in loc.lower():
                         countries_seen.add(country)
 
             if len(countries_seen) >= 2:
-                connections.append({
-                    "connection_type": "location_inconsistency",
-                    "entities": list(countries_seen),
-                    "confidence": 0.5,
-                    "description": (
-                        f"Target appears in multiple countries: "
-                        f"{', '.join(countries_seen)}"
-                    ),
-                    "source_modules": sorted(
-                        set(m for lmods in location_modules.values() for m in lmods)
-                    ),
-                    "evidence": [
-                        f"Location found: {loc}" for loc in locations[:5]
-                    ],
-                })
+                connections.append(
+                    {
+                        "connection_type": "location_inconsistency",
+                        "entities": list(countries_seen),
+                        "confidence": 0.5,
+                        "description": (
+                            f"Target appears in multiple countries: {', '.join(countries_seen)}"
+                        ),
+                        "source_modules": sorted(
+                            set(m for lmods in location_modules.values() for m in lmods)
+                        ),
+                        "evidence": [f"Location found: {loc}" for loc in locations[:5]],
+                    }
+                )
             elif len(countries_seen) == 1:
-                connections.append({
-                    "connection_type": "location_consistency",
-                    "entities": locations,
-                    "confidence": 0.75,
-                    "description": (
-                        f"All location data consistently points to: "
-                        f"{next(iter(countries_seen))}"
-                    ),
-                    "source_modules": sorted(
-                        set(m for lmods in location_modules.values() for m in lmods)
-                    ),
-                    "evidence": [
-                        f"Location: {loc}" for loc in locations[:5]
-                    ],
-                })
+                connections.append(
+                    {
+                        "connection_type": "location_consistency",
+                        "entities": locations,
+                        "confidence": 0.75,
+                        "description": (
+                            f"All location data consistently points to: "
+                            f"{next(iter(countries_seen))}"
+                        ),
+                        "source_modules": sorted(
+                            set(m for lmods in location_modules.values() for m in lmods)
+                        ),
+                        "evidence": [f"Location: {loc}" for loc in locations[:5]],
+                    }
+                )
 
         # ── Temporal proximity (account creation dates) ────────────
         creation_dates: list[dict[str, Any]] = self._extract_creation_dates(module_data)
@@ -495,33 +522,34 @@ class CorrelationEngine:
                 for d2 in sorted_dates[i + 1 :]:
                     try:
                         import datetime
+
                         t1 = datetime.datetime.fromisoformat(d1["timestamp"].replace("Z", "+00:00"))
                         t2 = datetime.datetime.fromisoformat(d2["timestamp"].replace("Z", "+00:00"))
                         diff_days = abs((t2 - t1).days)
                         if diff_days <= 7:
-                            connections.append({
-                                "connection_type": "temporal_proximity",
-                                "entities": [d1["platform"], d2["platform"]],
-                                "confidence": 0.65,
-                                "description": (
-                                    f"Accounts on '{d1['platform']}' and "
-                                    f"'{d2['platform']}' created within "
-                                    f"{diff_days} days of each other"
-                                ),
-                                "source_modules": [d1["module"], d2["module"]],
-                                "evidence": [
-                                    f"{d1['platform']} created: {d1['timestamp']}",
-                                    f"{d2['platform']} created: {d2['timestamp']}",
-                                ],
-                            })
+                            connections.append(
+                                {
+                                    "connection_type": "temporal_proximity",
+                                    "entities": [d1["platform"], d2["platform"]],
+                                    "confidence": 0.65,
+                                    "description": (
+                                        f"Accounts on '{d1['platform']}' and "
+                                        f"'{d2['platform']}' created within "
+                                        f"{diff_days} days of each other"
+                                    ),
+                                    "source_modules": [d1["module"], d2["module"]],
+                                    "evidence": [
+                                        f"{d1['platform']} created: {d1['timestamp']}",
+                                        f"{d2['platform']} created: {d2['timestamp']}",
+                                    ],
+                                }
+                            )
                     except Exception:
                         pass
 
         return connections
 
-    def _extract_creation_dates(
-        self, module_data: dict[str, Any]
-    ) -> list[dict[str, Any]]:
+    def _extract_creation_dates(self, module_data: dict[str, Any]) -> list[dict[str, Any]]:
         """Extract account/domain creation dates from module data."""
         dates: list[dict[str, Any]] = []
 
@@ -529,22 +557,24 @@ class CorrelationEngine:
             if isinstance(obj, dict):
                 # Look for creation date keys
                 for key in (
-                    "created_at", "account_created_at", "creation_date",
-                    "registered_at", "registration_date", "joined_at",
+                    "created_at",
+                    "account_created_at",
+                    "creation_date",
+                    "registered_at",
+                    "registration_date",
+                    "joined_at",
                     "member_since",
                 ):
                     val = obj.get(key)
                     if isinstance(val, str) and val.strip():
-                        plat = (
-                            obj.get("platform")
-                            or obj.get("source")
-                            or platform
+                        plat = obj.get("platform") or obj.get("source") or platform
+                        dates.append(
+                            {
+                                "timestamp": val.strip(),
+                                "platform": str(plat),
+                                "module": module,
+                            }
                         )
-                        dates.append({
-                            "timestamp": val.strip(),
-                            "platform": str(plat),
-                            "module": module,
-                        })
                 # Recurse
                 for v in obj.values():
                     _walk(v, module, platform)
@@ -585,41 +615,49 @@ class CorrelationEngine:
             for field in password_fields:
                 val = data.get(field)
                 if isinstance(val, str) and val.strip() and len(val) > 3:
-                    anomalies.append({
-                        "anomaly_type": "passwords_exposed",
-                        "description": f"Password/hash data found in breach results ({module_name})",
-                        "severity": "critical",
-                        "module": module_name,
-                        "evidence": [f"Field '{field}' contains non-empty value"],
-                    })
+                    anomalies.append(
+                        {
+                            "anomaly_type": "passwords_exposed",
+                            "description": f"Password/hash data found in breach results ({module_name})",
+                            "severity": "critical",
+                            "module": module_name,
+                            "evidence": [f"Field '{field}' contains non-empty value"],
+                        }
+                    )
                     break
 
             # Check for GPS data in EXIF
             if any(k in data for k in ("gps_latitude", "gps_longitude", "has_gps")):
                 if data.get("has_gps") or (data.get("gps_latitude") and data.get("gps_longitude")):
-                    anomalies.append({
-                        "anomaly_type": "exif_gps_exposure",
-                        "description": f"GPS coordinates found in image metadata ({module_name})",
-                        "severity": "high",
-                        "module": module_name,
-                        "evidence": [
-                            f"Lat: {data.get('gps_latitude')}, Lon: {data.get('gps_longitude')}"
-                        ],
-                    })
+                    anomalies.append(
+                        {
+                            "anomaly_type": "exif_gps_exposure",
+                            "description": f"GPS coordinates found in image metadata ({module_name})",
+                            "severity": "high",
+                            "module": module_name,
+                            "evidence": [
+                                f"Lat: {data.get('gps_latitude')}, Lon: {data.get('gps_longitude')}"
+                            ],
+                        }
+                    )
 
             # Check for WHOIS privacy not enabled
-            if module_name in ("whois_lookup", "whois") and isinstance(data.get("has_whois_privacy"), bool):
+            if module_name in ("whois_lookup", "whois") and isinstance(
+                data.get("has_whois_privacy"), bool
+            ):
                 if not data["has_whois_privacy"]:
-                    anomalies.append({
-                        "anomaly_type": "public_registrant_info",
-                        "description": "Domain WHOIS shows public registrant information",
-                        "severity": "medium",
-                        "module": module_name,
-                        "evidence": [
-                            f"Registrant: {data.get('registrant_name', 'unknown')}",
-                            f"Email: {data.get('registrant_email', 'unknown')}",
-                        ],
-                    })
+                    anomalies.append(
+                        {
+                            "anomaly_type": "public_registrant_info",
+                            "description": "Domain WHOIS shows public registrant information",
+                            "severity": "medium",
+                            "module": module_name,
+                            "evidence": [
+                                f"Registrant: {data.get('registrant_name', 'unknown')}",
+                                f"Email: {data.get('registrant_email', 'unknown')}",
+                            ],
+                        }
+                    )
 
             # Leaked secrets in code repos
             secret_patterns = [
@@ -630,13 +668,15 @@ class CorrelationEngine:
             ]
             for pattern in secret_patterns:
                 if re.search(pattern, all_text, re.IGNORECASE):
-                    anomalies.append({
-                        "anomaly_type": "leaked_secrets",
-                        "description": f"Potential API key/secret found in data from {module_name}",
-                        "severity": "critical",
-                        "module": module_name,
-                        "evidence": ["Pattern match for credential-like strings"],
-                    })
+                    anomalies.append(
+                        {
+                            "anomaly_type": "leaked_secrets",
+                            "description": f"Potential API key/secret found in data from {module_name}",
+                            "severity": "critical",
+                            "module": module_name,
+                            "evidence": ["Pattern match for credential-like strings"],
+                        }
+                    )
                     break
 
         return anomalies

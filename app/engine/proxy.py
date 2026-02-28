@@ -21,7 +21,7 @@ import random
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import aiohttp
 
@@ -35,8 +35,8 @@ logger = get_logger(__name__)
 class ProxyInfo:
     """Information about a single proxy."""
 
-    url: str                         # protocol://user:pass@host:port
-    protocol: str = "http"           # http | socks5 | socks4
+    url: str  # protocol://user:pass@host:port
+    protocol: str = "http"  # http | socks5 | socks4
     host: str = ""
     port: int = 0
     is_healthy: bool = True
@@ -55,7 +55,9 @@ class ProxyInfo:
         self.success_count += 1
         self.last_used = time.monotonic()
         # Exponential moving average of latency
-        self.avg_latency_ms = (0.7 * self.avg_latency_ms + 0.3 * latency_ms) if self.avg_latency_ms else latency_ms
+        self.avg_latency_ms = (
+            (0.7 * self.avg_latency_ms + 0.3 * latency_ms) if self.avg_latency_ms else latency_ms
+        )
 
     def record_failure(self) -> None:
         self.failure_count += 1
@@ -209,6 +211,7 @@ class ProxyRotator:
             return False
         try:
             import socket
+
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 s.connect(("127.0.0.1", settings.tor_control_port))
                 password = settings.tor_password.get_secret_value()

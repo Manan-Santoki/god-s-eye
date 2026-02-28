@@ -30,7 +30,6 @@ import aiohttp
 
 from app.core.config import settings
 from app.core.constants import ModulePhase, TargetType
-from app.core.exceptions import APIError, RateLimitError
 from app.core.logging import get_logger
 from app.modules.base import BaseModule, ModuleMetadata, ModuleResult
 
@@ -39,12 +38,14 @@ logger = get_logger(__name__)
 # Lazy imports — may not be installed
 try:
     from PIL import Image as PILImage
+
     _PILLOW_AVAILABLE = True
 except ImportError:
     _PILLOW_AVAILABLE = False
 
 try:
     import imagehash
+
     _IMAGEHASH_AVAILABLE = True
 except ImportError:
     _IMAGEHASH_AVAILABLE = False
@@ -53,20 +54,39 @@ except ImportError:
 _DOWNLOAD_SEMAPHORE = 5
 
 # Supported image MIME types for download
-_ALLOWED_MIME_TYPES = frozenset({
-    "image/jpeg", "image/png", "image/gif", "image/webp",
-    "image/tiff", "image/bmp", "image/heic", "image/heif",
-    "image/svg+xml",
-})
+_ALLOWED_MIME_TYPES = frozenset(
+    {
+        "image/jpeg",
+        "image/png",
+        "image/gif",
+        "image/webp",
+        "image/tiff",
+        "image/bmp",
+        "image/heic",
+        "image/heif",
+        "image/svg+xml",
+    }
+)
 
 # Maximum file size to download (20 MB)
 _MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024
 
 # Supported image file extensions for filename sanitisation
-_IMAGE_EXTENSIONS = frozenset({
-    ".jpg", ".jpeg", ".png", ".gif", ".webp", ".tiff", ".tif",
-    ".bmp", ".heic", ".heif", ".svg",
-})
+_IMAGE_EXTENSIONS = frozenset(
+    {
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".gif",
+        ".webp",
+        ".tiff",
+        ".tif",
+        ".bmp",
+        ".heic",
+        ".heif",
+        ".svg",
+    }
+)
 
 _USER_AGENT = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
@@ -257,9 +277,7 @@ class ImageDownloaderModule(BaseModule):
                         return None
 
                     if resp.status != 200:
-                        warnings.append(
-                            f"HTTP {resp.status} downloading: {url[:80]}"
-                        )
+                        warnings.append(f"HTTP {resp.status} downloading: {url[:80]}")
                         return None
 
                     # Check content type
@@ -303,7 +321,7 @@ class ImageDownloaderModule(BaseModule):
                     return None
                 seen_hashes.add(hash_md5)
 
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 warnings.append(f"Timeout downloading image: {url[:80]}")
                 return None
             except aiohttp.ClientError as exc:
@@ -333,6 +351,7 @@ class ImageDownloaderModule(BaseModule):
         if _PILLOW_AVAILABLE and raw_bytes:
             try:
                 import io
+
                 with PILImage.open(io.BytesIO(raw_bytes)) as img:
                     width = img.width
                     height = img.height
@@ -376,11 +395,13 @@ class ImageDownloaderModule(BaseModule):
             if isinstance(item, str):
                 entries.append({"url": item, "platform": "unknown", "description": ""})
             elif isinstance(item, dict) and item.get("url"):
-                entries.append({
-                    "url": item["url"],
-                    "platform": item.get("platform") or "unknown",
-                    "description": item.get("description") or "",
-                })
+                entries.append(
+                    {
+                        "url": item["url"],
+                        "platform": item.get("platform") or "unknown",
+                        "description": item.get("description") or "",
+                    }
+                )
         return entries
 
     @staticmethod

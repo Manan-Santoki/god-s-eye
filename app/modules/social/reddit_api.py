@@ -15,7 +15,7 @@ import asyncio
 import base64
 import re
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import aiohttp
@@ -171,9 +171,7 @@ class RedditAPIModule(BaseModule):
 
         Returns the raw access token string.
         """
-        credentials = base64.b64encode(
-            f"{client_id}:{client_secret}".encode()
-        ).decode()
+        credentials = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
 
         headers = {
             "Authorization": f"Basic {credentials}",
@@ -238,11 +236,7 @@ class RedditAPIModule(BaseModule):
 
         # Convert created_utc (Unix epoch) to ISO string
         created_utc = data.get("created_utc", 0)
-        created_iso = (
-            datetime.fromtimestamp(created_utc, tz=timezone.utc).isoformat()
-            if created_utc
-            else ""
-        )
+        created_iso = datetime.fromtimestamp(created_utc, tz=UTC).isoformat() if created_utc else ""
 
         return {
             "name": data.get("name", username),
@@ -303,7 +297,7 @@ class RedditAPIModule(BaseModule):
                     "url": item.get("url", ""),
                     "permalink": f"https://reddit.com{item.get('permalink', '')}",
                     "created_utc": (
-                        datetime.fromtimestamp(created_utc, tz=timezone.utc).isoformat()
+                        datetime.fromtimestamp(created_utc, tz=UTC).isoformat()
                         if created_utc
                         else ""
                     ),
@@ -356,7 +350,7 @@ class RedditAPIModule(BaseModule):
                     "score": item.get("score", 0),
                     "permalink": f"https://reddit.com{item.get('permalink', '')}",
                     "created_utc": (
-                        datetime.fromtimestamp(created_utc, tz=timezone.utc).isoformat()
+                        datetime.fromtimestamp(created_utc, tz=UTC).isoformat()
                         if created_utc
                         else ""
                     ),
@@ -389,8 +383,7 @@ class RedditAPIModule(BaseModule):
                 subreddit_counter[sr] += 1
 
         top_subreddits = [
-            {"subreddit": sr, "count": count}
-            for sr, count in subreddit_counter.most_common(10)
+            {"subreddit": sr, "count": count} for sr, count in subreddit_counter.most_common(10)
         ]
 
         # Extract location mentions from all text
@@ -415,9 +408,7 @@ class RedditAPIModule(BaseModule):
                 except ValueError:
                     pass
 
-        most_active_hours = [
-            {"hour": h, "count": c} for h, c in sorted(hour_counts.items())
-        ]
+        most_active_hours = [{"hour": h, "count": c} for h, c in sorted(hour_counts.items())]
 
         return {
             "total_posts": len(posts),

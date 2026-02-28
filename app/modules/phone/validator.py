@@ -58,16 +58,21 @@ class PhoneValidatorModule(BaseModule):
         try:
             import phonenumbers
             from phonenumbers import (
-                carrier as pn_carrier,
-                geocoder as pn_geocoder,
-                number_type as pn_number_type,
                 PhoneNumberFormat,
                 PhoneNumberType,
             )
+            from phonenumbers import (
+                carrier as pn_carrier,
+            )
+            from phonenumbers import (
+                geocoder as pn_geocoder,
+            )
+            from phonenumbers import (
+                number_type as pn_number_type,
+            )
         except ImportError:
             return ModuleResult.fail(
-                "phonenumbers library not installed. "
-                "Run: pip install phonenumbers"
+                "phonenumbers library not installed. Run: pip install phonenumbers"
             )
 
         # ── Parse ────────────────────────────────────────────────────────────
@@ -121,18 +126,10 @@ class PhoneValidatorModule(BaseModule):
         line_type = self._line_type_str(num_type, PhoneNumberType)
 
         # ── Formats ──────────────────────────────────────────────────────────
-        international_fmt = phonenumbers.format_number(
-            parsed, PhoneNumberFormat.INTERNATIONAL
-        )
-        national_fmt = phonenumbers.format_number(
-            parsed, PhoneNumberFormat.NATIONAL
-        )
-        e164_fmt = phonenumbers.format_number(
-            parsed, PhoneNumberFormat.E164
-        )
-        rfc3966_fmt = phonenumbers.format_number(
-            parsed, PhoneNumberFormat.RFC3966
-        )
+        international_fmt = phonenumbers.format_number(parsed, PhoneNumberFormat.INTERNATIONAL)
+        national_fmt = phonenumbers.format_number(parsed, PhoneNumberFormat.NATIONAL)
+        e164_fmt = phonenumbers.format_number(parsed, PhoneNumberFormat.E164)
+        rfc3966_fmt = phonenumbers.format_number(parsed, PhoneNumberFormat.RFC3966)
 
         elapsed = int((time.monotonic() - start) * 1000)
         logger.info(
@@ -148,34 +145,34 @@ class PhoneValidatorModule(BaseModule):
             data={
                 "is_valid": is_valid,
                 "is_possible": is_possible,
-                "country_code": region_code,              # ISO 3166-1 alpha-2, e.g. "US"
+                "country_code": region_code,  # ISO 3166-1 alpha-2, e.g. "US"
                 "country_dial_code": f"+{country_code_int}",  # e.g. "+1"
-                "country": country_name or region_code,   # Human-readable country name
-                "carrier": carrier_name,                  # May be None for landlines or VoIP
-                "line_type": line_type,                   # "MOBILE", "FIXED_LINE", "VOIP", etc.
+                "country": country_name or region_code,  # Human-readable country name
+                "carrier": carrier_name,  # May be None for landlines or VoIP
+                "line_type": line_type,  # "MOBILE", "FIXED_LINE", "VOIP", etc.
                 "international_format": international_fmt,  # "+1 800 555 0199"
-                "national_format": national_fmt,           # "(800) 555-0199"
-                "e164_format": e164_fmt,                   # "+18005550199"
-                "rfc3966_format": rfc3966_fmt,             # "tel:+1-800-555-0199"
+                "national_format": national_fmt,  # "(800) 555-0199"
+                "e164_format": e164_fmt,  # "+18005550199"
+                "rfc3966_format": rfc3966_fmt,  # "tel:+1-800-555-0199"
                 "raw_input": target,
             }
         )
 
     @staticmethod
-    def _line_type_str(num_type: Any, PhoneNumberType: Any) -> str:
+    def _line_type_str(num_type: Any, phone_number_type: Any) -> str:
         """Map a PhoneNumberType enum value to a human-readable string."""
         mapping = {
-            PhoneNumberType.MOBILE: "MOBILE",
-            PhoneNumberType.FIXED_LINE: "FIXED_LINE",
-            PhoneNumberType.FIXED_LINE_OR_MOBILE: "FIXED_LINE_OR_MOBILE",
-            PhoneNumberType.TOLL_FREE: "TOLL_FREE",
-            PhoneNumberType.PREMIUM_RATE: "PREMIUM_RATE",
-            PhoneNumberType.SHARED_COST: "SHARED_COST",
-            PhoneNumberType.VOIP: "VOIP",
-            PhoneNumberType.PERSONAL_NUMBER: "PERSONAL_NUMBER",
-            PhoneNumberType.PAGER: "PAGER",
-            PhoneNumberType.UAN: "UAN",
-            PhoneNumberType.VOICEMAIL: "VOICEMAIL",
-            PhoneNumberType.UNKNOWN: "UNKNOWN",
+            phone_number_type.MOBILE: "MOBILE",
+            phone_number_type.FIXED_LINE: "FIXED_LINE",
+            phone_number_type.FIXED_LINE_OR_MOBILE: "FIXED_LINE_OR_MOBILE",
+            phone_number_type.TOLL_FREE: "TOLL_FREE",
+            phone_number_type.PREMIUM_RATE: "PREMIUM_RATE",
+            phone_number_type.SHARED_COST: "SHARED_COST",
+            phone_number_type.VOIP: "VOIP",
+            phone_number_type.PERSONAL_NUMBER: "PERSONAL_NUMBER",
+            phone_number_type.PAGER: "PAGER",
+            phone_number_type.UAN: "UAN",
+            phone_number_type.VOICEMAIL: "VOICEMAIL",
+            phone_number_type.UNKNOWN: "UNKNOWN",
         }
         return mapping.get(num_type, "UNKNOWN")

@@ -3,7 +3,6 @@ Text analysis utilities for extracting entities from unstructured text.
 """
 
 import re
-from collections import Counter
 from typing import Any
 
 EMAIL_PATTERN = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b")
@@ -31,6 +30,7 @@ def extract_urls(text: str) -> list[str]:
 def extract_ips(text: str) -> list[str]:
     """Extract IP addresses from text."""
     import ipaddress
+
     candidates = IP_PATTERN.findall(text)
     valid = []
     for ip in candidates:
@@ -50,6 +50,7 @@ def extract_names(text: str) -> list[str]:
     names = []
     try:
         import spacy
+
         nlp = spacy.load("en_core_web_sm")
         doc = nlp(text[:5000])  # Limit to 5k chars for speed
         for ent in doc.ents:
@@ -75,6 +76,7 @@ def extract_locations(text: str) -> list[str]:
     locations = []
     try:
         import spacy
+
         nlp = spacy.load("en_core_web_sm")
         doc = nlp(text[:5000])
         for ent in doc.ents:
@@ -85,7 +87,7 @@ def extract_locations(text: str) -> list[str]:
         pass
 
     seen: set[str] = set()
-    return [l for l in locations if not (l in seen or seen.add(l))]
+    return [location for location in locations if not (location in seen or seen.add(location))]
 
 
 def find_username_patterns(usernames: list[str]) -> dict[str, Any]:
@@ -138,7 +140,7 @@ def summarize_findings(module_results: dict[str, Any]) -> dict[str, Any]:
         "has_exif_gps": False,
     }
 
-    for module_name, data in module_results.items():
+    for _module_name, data in module_results.items():
         if not isinstance(data, dict):
             continue
 
@@ -149,8 +151,7 @@ def summarize_findings(module_results: dict[str, Any]) -> dict[str, Any]:
                     summary["emails_found"].append(val)
                 elif isinstance(val, list):
                     summary["emails_found"].extend(
-                        v if isinstance(v, str) else v.get("email", "")
-                        for v in val
+                        v if isinstance(v, str) else v.get("email", "") for v in val
                     )
 
         # Breach count
@@ -161,8 +162,7 @@ def summarize_findings(module_results: dict[str, Any]) -> dict[str, Any]:
         if platforms := data.get("platforms") or data.get("found_platforms"):
             if isinstance(platforms, list):
                 summary["platforms_found"].extend(
-                    p if isinstance(p, str) else p.get("platform", "")
-                    for p in platforms
+                    p if isinstance(p, str) else p.get("platform", "") for p in platforms
                 )
 
         # Face matches

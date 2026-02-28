@@ -131,13 +131,9 @@ class IntelXModule(BaseModule):
             try:
                 search_id = await self._submit_search(session, term)
             except AuthenticationError:
-                return ModuleResult.fail(
-                    "IntelX authentication failed — check INTELX_API_KEY"
-                )
+                return ModuleResult.fail("IntelX authentication failed — check INTELX_API_KEY")
             except RateLimitError as exc:
-                return ModuleResult.fail(
-                    f"IntelX rate limited (retry after {exc.retry_after}s)"
-                )
+                return ModuleResult.fail(f"IntelX rate limited (retry after {exc.retry_after}s)")
             except APIError as exc:
                 return ModuleResult.fail(f"IntelX search submission failed: {exc}")
             except Exception as exc:
@@ -167,7 +163,7 @@ class IntelXModule(BaseModule):
                         records_found=len(records),
                     )
                     break
-                except RateLimitError as exc:
+                except RateLimitError:
                     msg = f"IntelX rate limited on poll attempt {attempt}"
                     logger.warning("intelx_poll_rate_limited", attempt=attempt)
                     warnings.append(msg)
@@ -185,9 +181,7 @@ class IntelXModule(BaseModule):
                         errors.append(msg)
 
         # Normalise all retrieved records
-        normalised_records = [
-            self._parse_record(r) for r in records if isinstance(r, dict)
-        ]
+        normalised_records = [self._parse_record(r) for r in records if isinstance(r, dict)]
 
         elapsed_ms = int((time.monotonic() - start) * 1000)
         logger.info(

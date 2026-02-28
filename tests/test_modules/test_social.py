@@ -73,7 +73,14 @@ class TestLinkedInScraper:
                 with patch.object(
                     module,
                     "_search_and_extract",
-                    AsyncMock(return_value=[{"name": "John Doe", "profile_url": "https://www.linkedin.com/in/john-doe"}]),
+                    AsyncMock(
+                        return_value=[
+                            {
+                                "name": "John Doe",
+                                "profile_url": "https://www.linkedin.com/in/john-doe",
+                            }
+                        ]
+                    ),
                 ) as search_extract:
                     result = await module.run(
                         "john.doe@example.com",
@@ -149,7 +156,12 @@ class TestInstagramScraper:
                 with patch.object(
                     module,
                     "_scrape_profile",
-                    AsyncMock(return_value={"username": "john.doe", "profile_url": "https://www.instagram.com/john.doe/"}),
+                    AsyncMock(
+                        return_value={
+                            "username": "john.doe",
+                            "profile_url": "https://www.instagram.com/john.doe/",
+                        }
+                    ),
                 ) as scrape_profile:
                     result = await module.run(
                         "john.doe@example.com",
@@ -231,7 +243,15 @@ class TestGitHubAPIModule:
             with patch.object(
                 module,
                 "_search_users",
-                AsyncMock(return_value=[{"login": "john-doe", "html_url": "https://github.com/john-doe", "score": 1.0}]),
+                AsyncMock(
+                    return_value=[
+                        {
+                            "login": "john-doe",
+                            "html_url": "https://github.com/john-doe",
+                            "score": 1.0,
+                        }
+                    ]
+                ),
             ) as search_users:
                 with patch.object(module, "_fetch_repos", AsyncMock(return_value=[])):
                     with patch.object(module, "_fetch_events", AsyncMock(return_value=[])):

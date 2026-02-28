@@ -8,16 +8,14 @@ Engines:
 """
 
 import asyncio
-import base64
 import time
 from pathlib import Path
 from typing import Any
 
 import aiohttp
-from tenacity import retry, stop_after_attempt, wait_exponential
 
 from app.core.config import settings
-from app.core.constants import TargetType, ModulePhase
+from app.core.constants import ModulePhase, TargetType
 from app.core.logging import get_logger
 from app.modules.base import BaseModule, ModuleMetadata, ModuleResult
 
@@ -25,7 +23,6 @@ logger = get_logger(__name__)
 
 
 class ReverseImageSearch(BaseModule):
-
     def metadata(self) -> ModuleMetadata:
         return ModuleMetadata(
             name="reverse_image_search",
@@ -68,7 +65,9 @@ class ReverseImageSearch(BaseModule):
                     self._tineye_api(str(img_path)),
                     return_exceptions=True,
                 )
-                for engine_name, result in zip(["google", "yandex", "tineye"], results):
+                for engine_name, result in zip(
+                    ["google", "yandex", "tineye"], results, strict=False
+                ):
                     if isinstance(result, Exception):
                         logger.debug(f"reverse_search_{engine_name}_failed", error=str(result))
                     elif result:
@@ -114,6 +113,7 @@ class ReverseImageSearch(BaseModule):
         results = []
         try:
             from app.engine.browser import BrowserFactory
+
             factory = await BrowserFactory.create()
             page = await factory.new_page()
 
@@ -137,12 +137,14 @@ class ReverseImageSearch(BaseModule):
                 text = await el.inner_text()
                 parent = el.locator("..")
                 link = await parent.locator("a").first.get_attribute("href")
-                results.append({
-                    "engine": "google",
-                    "title": text,
-                    "url": link,
-                    "image_path": image_path,
-                })
+                results.append(
+                    {
+                        "engine": "google",
+                        "title": text,
+                        "url": link,
+                        "image_path": image_path,
+                    }
+                )
             await page.close()
         except Exception as e:
             logger.debug("google_reverse_error", error=str(e))
@@ -153,6 +155,7 @@ class ReverseImageSearch(BaseModule):
         results = []
         try:
             from app.engine.browser import BrowserFactory
+
             factory = await BrowserFactory.create()
             page = await factory.new_page()
 
@@ -176,12 +179,14 @@ class ReverseImageSearch(BaseModule):
                 text = await el.inner_text()
                 link_el = el.locator("a").first
                 href = await link_el.get_attribute("href") if await link_el.count() else None
-                results.append({
-                    "engine": "yandex",
-                    "title": text,
-                    "url": href,
-                    "image_path": image_path,
-                })
+                results.append(
+                    {
+                        "engine": "yandex",
+                        "title": text,
+                        "url": href,
+                        "image_path": image_path,
+                    }
+                )
             await page.close()
         except Exception as e:
             logger.debug("yandex_reverse_error", error=str(e))
@@ -212,14 +217,16 @@ class ReverseImageSearch(BaseModule):
                     data = await resp.json()
 
             for match in data.get("results", {}).get("matches", [])[:5]:
-                results.append({
-                    "engine": "tineye",
-                    "title": match.get("domain", ""),
-                    "url": match.get("backlink"),
-                    "image_url": match.get("image_url"),
-                    "score": match.get("score"),
-                    "image_path": image_path,
-                })
+                results.append(
+                    {
+                        "engine": "tineye",
+                        "title": match.get("domain", ""),
+                        "url": match.get("backlink"),
+                        "image_url": match.get("image_url"),
+                        "score": match.get("score"),
+                        "image_path": image_path,
+                    }
+                )
         except Exception as e:
             logger.debug("tineye_api_error", error=str(e))
 

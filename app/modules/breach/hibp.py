@@ -116,8 +116,7 @@ class HIBPModule(BaseModule):
             1
             for b in breaches
             if any(
-                dc.lower() in ("passwords", "password hints")
-                for dc in b.get("data_classes", [])
+                dc.lower() in ("passwords", "password hints") for dc in b.get("data_classes", [])
             )
         )
 

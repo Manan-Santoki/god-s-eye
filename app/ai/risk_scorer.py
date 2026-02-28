@@ -156,7 +156,7 @@ class RiskScorer:
         breach_count = 0
         passwords_exposed = False
 
-        for module_name, data in module_results.items():
+        for _module_name, data in module_results.items():
             if not isinstance(data, dict):
                 continue
 
@@ -211,7 +211,7 @@ class RiskScorer:
         per5_weight = RISK_WEIGHTS.get("social_platforms_per_5", 1.0)
         max_per5 = per5_weight * 3  # cap at 3 groups of 5
 
-        for module_name, data in module_results.items():
+        for _module_name, data in module_results.items():
             if not isinstance(data, dict):
                 continue
 
@@ -250,7 +250,7 @@ class RiskScorer:
 
         personal_keys = ("phone", "address", "employer", "company", "home_address", "mobile")
 
-        for module_name, data in module_results.items():
+        for _module_name, data in module_results.items():
             if not isinstance(data, dict):
                 continue
             for key in personal_keys:
@@ -278,7 +278,7 @@ class RiskScorer:
         has_gps = False
         has_unexpected_face = False
 
-        for module_name, data in module_results.items():
+        for _module_name, data in module_results.items():
             if not isinstance(data, dict):
                 continue
 
@@ -316,7 +316,7 @@ class RiskScorer:
         """Score based on WHOIS privacy and domain exposure."""
         whois_weight = RISK_WEIGHTS.get("whois_not_private", 1.0)
 
-        for module_name, data in module_results.items():
+        for _module_name, data in module_results.items():
             if not isinstance(data, dict):
                 continue
             if isinstance(data.get("has_whois_privacy"), bool) and not data["has_whois_privacy"]:
@@ -334,6 +334,7 @@ class RiskScorer:
     ) -> tuple[float, dict[str, float]]:
         """Score based on secrets found in public code repositories."""
         import re
+
         secret_weight = RISK_WEIGHTS.get("secret_in_code", 3.0)
         secret_patterns = [
             r"api[_-]?key\s*[:=]\s*['\"][A-Za-z0-9_\-]{16,}['\"]",
@@ -342,7 +343,7 @@ class RiskScorer:
             r"password\s*[:=]\s*['\"][^'\"]{6,}['\"]",
         ]
 
-        for module_name, data in module_results.items():
+        for _module_name, data in module_results.items():
             if not isinstance(data, dict):
                 continue
             if data.get("secrets_found") or data.get("leaked_secrets"):
@@ -388,9 +389,7 @@ class RiskScorer:
 
         return top
 
-    def _default_recommendations(
-        self, level: str, breakdown: dict[str, float]
-    ) -> list[str]:
+    def _default_recommendations(self, level: str, breakdown: dict[str, float]) -> list[str]:
         """Generate rule-based recommendations when LLM is unavailable."""
         recs: list[str] = []
 
@@ -430,7 +429,9 @@ class RiskScorer:
                 "Engage a privacy specialist — your digital footprint poses immediate risks."
             )
         if not recs:
-            recs.append("Regularly audit your online presence and review platform privacy settings.")
+            recs.append(
+                "Regularly audit your online presence and review platform privacy settings."
+            )
 
         return recs[:5]
 
@@ -470,8 +471,8 @@ class RiskScorer:
         raw_text = await generator._call_llm(prompt)
 
         # Try to parse JSON from the response
-        import re
         import json as _json
+        import re
 
         json_match = re.search(r"```(?:json)?\s*([\s\S]+?)```", raw_text)
         json_str = json_match.group(1) if json_match else raw_text
@@ -491,7 +492,7 @@ class RiskScorer:
             for line in raw_text.split("\n")
             if line.strip().startswith(("-", "•", "*"))
         ]
-        return [l for l in lines if len(l) > 10][:5]
+        return [line for line in lines if len(line) > 10][:5]
 
     def _load_module_results(self, session: ScanSession) -> dict[str, Any]:
         """Load module results from session context and disk."""
@@ -512,7 +513,9 @@ class RiskScorer:
                         with open(json_path) as f:
                             results[module_name] = json.load(f)
                     except Exception as exc:
-                        logger.warning("risk_scorer_load_failed", file=str(json_path), error=str(exc))
+                        logger.warning(
+                            "risk_scorer_load_failed", file=str(json_path), error=str(exc)
+                        )
 
         return results
 
@@ -535,7 +538,10 @@ class RiskScorer:
                 isinstance(data, dict)
                 and "data" in data
                 and isinstance(data.get("data"), dict)
-                and (set(data.keys()) <= envelope_keys or any(key in data for key in ("success", "errors", "warnings")))
+                and (
+                    set(data.keys()) <= envelope_keys
+                    or any(key in data for key in ("success", "errors", "warnings"))
+                )
             ):
                 normalized[module_name] = data["data"]
             else:

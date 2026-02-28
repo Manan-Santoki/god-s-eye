@@ -68,9 +68,7 @@ class HunterIOModule(BaseModule):
         api_key = self._get_secret(settings.hunter_io_api_key)
         if not api_key:
             logger.warning("hunter_skipped", reason="HUNTER_IO_API_KEY not configured")
-            return ModuleResult.fail(
-                "API key not configured: set HUNTER_IO_API_KEY in .env"
-            )
+            return ModuleResult.fail("API key not configured: set HUNTER_IO_API_KEY in .env")
 
         target = target.strip().lower()
         start = time.monotonic()
@@ -189,10 +187,7 @@ class HunterIOModule(BaseModule):
         try:
             data = await self._get_json(session, url, params)
             raw_data = data.get("data", {})
-            emails = [
-                self._parse_email_entry(e)
-                for e in raw_data.get("emails", [])
-            ]
+            emails = [self._parse_email_entry(e) for e in raw_data.get("emails", [])]
             return {
                 "emails": emails,
                 "organization": raw_data.get("organization"),
@@ -234,9 +229,11 @@ class HunterIOModule(BaseModule):
             data = await self._get_json(session, url, params)
             raw_data = data.get("data", {})
             return {
-                "status": raw_data.get("status"),          # "valid", "invalid", "accept_all", "webmail", "disposable", "unknown"
-                "score": raw_data.get("score", 0),          # 0–100 confidence score
-                "regexp": raw_data.get("regexp", False),    # Passes regex check
+                "status": raw_data.get(
+                    "status"
+                ),  # "valid", "invalid", "accept_all", "webmail", "disposable", "unknown"
+                "score": raw_data.get("score", 0),  # 0–100 confidence score
+                "regexp": raw_data.get("regexp", False),  # Passes regex check
                 "gibberish": raw_data.get("gibberish", False),
                 "disposable": raw_data.get("disposable", False),
                 "webmail": raw_data.get("webmail", False),
@@ -305,7 +302,7 @@ class HunterIOModule(BaseModule):
         sources = raw.get("sources", [])
         return {
             "email": raw.get("value", ""),
-            "type": raw.get("type", ""),          # "personal" or "generic"
+            "type": raw.get("type", ""),  # "personal" or "generic"
             "confidence": raw.get("confidence", 0),
             "first_name": raw.get("first_name"),
             "last_name": raw.get("last_name"),

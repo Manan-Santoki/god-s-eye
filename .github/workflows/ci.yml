@@ -342,6 +342,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build-distributions]
     if: needs.build-distributions.result == 'success'
+    env:
+      TEST_PYPI_TOKEN: ${{ secrets.TEST_PYPI_API_TOKEN }}
     steps:
       - uses: actions/setup-python@v5
         with:
@@ -357,14 +359,14 @@ jobs:
         run: pip install twine
 
       - name: Skip TestPyPI publish when token is missing
-        if: secrets.TEST_PYPI_API_TOKEN == ''
+        if: env.TEST_PYPI_TOKEN == ''
         run: echo "TEST_PYPI_API_TOKEN is not configured; skipping TestPyPI publish."
 
       - name: Publish distributions to TestPyPI
-        if: secrets.TEST_PYPI_API_TOKEN != ''
+        if: env.TEST_PYPI_TOKEN != ''
         env:
           TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.TEST_PYPI_API_TOKEN }}
+          TWINE_PASSWORD: ${{ env.TEST_PYPI_TOKEN }}
         run: python -m twine upload --skip-existing --repository-url https://test.pypi.org/legacy/ dist/*
 
   publish-pypi:
@@ -372,6 +374,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build-distributions, publish-testpypi]
     if: needs.build-distributions.result == 'success' && needs.publish-testpypi.result == 'success'
+    env:
+      PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
     steps:
       - uses: actions/setup-python@v5
         with:
@@ -387,14 +391,14 @@ jobs:
         run: pip install twine
 
       - name: Skip PyPI publish when token is missing
-        if: secrets.PYPI_API_TOKEN == ''
+        if: env.PYPI_TOKEN == ''
         run: echo "PYPI_API_TOKEN is not configured; skipping PyPI publish."
 
       - name: Publish distributions to PyPI
-        if: secrets.PYPI_API_TOKEN != ''
+        if: env.PYPI_TOKEN != ''
         env:
           TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+          TWINE_PASSWORD: ${{ env.PYPI_TOKEN }}
         run: python -m twine upload --skip-existing dist/*
 
   release:

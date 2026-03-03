@@ -28,6 +28,11 @@ logger = get_logger(__name__)
 _running_scans: dict[str, asyncio.Task[None]] = {}
 _ws_connections: dict[str, list[WebSocket]] = {}
 
+# Face selection state for API mode
+_pending_face_selections: dict[str, asyncio.Event] = {}
+_face_selection_results: dict[str, dict[str, Any]] = {}
+_pending_face_payloads: dict[str, list[dict[str, Any]]] = {}
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -96,6 +101,10 @@ class HealthResponse(BaseModel):
     services: dict[str, bool]
     modules_count: int
     version: str = __version__
+
+
+class FaceSelectionRequest(BaseModel):
+    confirmed_indices: list[int]
 
 
 # ── Endpoints ────────────────────────────────────────────────────
@@ -229,8 +238,76 @@ async def _run_scan_background(
     try:
         from app.engine.orchestrator import Orchestrator
 
+        async def api_interaction_callback(
+            interaction_type: str, payload: dict[str, Any]
+        ) -> dict[str, Any]:
+            if interaction_type != "face_selection_required":
+                return {}
+
+            images = payload.get("images", [])
+            if not images:
+                return {"confirmed_indices": []}
+
+            # Generate thumbnails for WebSocket/API delivery
+            from app.ui.face_selector import build_thumbnail_payloads
+
+            loop = asyncio.get_event_loop()
+            thumbnails = await loop.run_in_executor(
+                None, build_thumbnail_payloads, images
+            )
+
+            # Store payloads for the GET endpoint
+            _pending_face_payloads[request_id] = thumbnails
+
+            # Notify WebSocket clients
+            await _publish_progress(
+                request_id,
+                {
+                    "type": "face_selection_required",
+                    "images": thumbnails,
+                    "image_count": len(images),
+                },
+            )
+
+            # Wait for user response via POST endpoint
+            event = asyncio.Event()
+            _pending_face_selections[request_id] = event
+
+            try:
+                timeout = 300  # seconds
+                try:
+                    from app.core.config import get_module_setting
+
+                    timeout = int(
+                        get_module_setting(
+                            "visual", "face_selector", "timeout_seconds", 300
+                        )
+                        or 300
+                    )
+                except Exception:
+                    pass
+
+                await asyncio.wait_for(event.wait(), timeout=timeout)
+                result = _face_selection_results.get(request_id, {})
+                return result
+            except TimeoutError:
+                logger.warning(
+                    "face_selection_timeout",
+                    request_id=request_id,
+                    timeout=timeout,
+                )
+                # Auto-continue with all images on timeout
+                return {
+                    "confirmed_indices": list(range(len(images)))
+                }
+            finally:
+                _pending_face_selections.pop(request_id, None)
+                _face_selection_results.pop(request_id, None)
+                _pending_face_payloads.pop(request_id, None)
+
         orchestrator = Orchestrator(
-            progress_callback=lambda payload: _publish_progress(request_id, payload)
+            progress_callback=lambda payload: _publish_progress(request_id, payload),
+            interaction_callback=api_interaction_callback,
         )
         session = await orchestrator.run_scan(
             target=target,
@@ -367,6 +444,42 @@ async def cancel_scan(request_id: str) -> dict[str, str]:
     task.cancel()
     await _publish_progress(request_id, {"status": "cancel_requested"})
     return {"message": f"Scan {request_id} cancelled"}
+
+
+# ── Face Selection Endpoints ──────────────────────────────────────
+
+
+@app.get("/scan/{request_id}/pending-faces", tags=["Scanning"])
+async def get_pending_faces(request_id: str) -> dict[str, Any]:
+    """Get pending face selection thumbnails for a scan."""
+    payloads = _pending_face_payloads.get(request_id)
+    if payloads is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No pending face selection for scan: {request_id}",
+        )
+    return {"request_id": request_id, "images": payloads}
+
+
+@app.post("/scan/{request_id}/select-faces", tags=["Scanning"])
+async def select_faces(
+    request_id: str,
+    request: FaceSelectionRequest,
+) -> dict[str, str]:
+    """Submit face selection for a pending scan."""
+    event = _pending_face_selections.get(request_id)
+    if not event:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No pending face selection for scan: {request_id}",
+        )
+
+    _face_selection_results[request_id] = {
+        "confirmed_indices": request.confirmed_indices,
+    }
+    event.set()
+
+    return {"message": f"Face selection submitted for scan {request_id}"}
 
 
 # ── WebSocket ────────────────────────────────────────────────────

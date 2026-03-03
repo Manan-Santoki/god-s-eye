@@ -93,6 +93,82 @@ class TestLinkedInScraper:
         search_extract.assert_awaited_once()
         factory.close_page.assert_awaited_once_with(page, save_session=True)
 
+    def test_select_candidate_profile_urls_prefers_search_discovery(self):
+        from app.modules.social.linkedin_scraper import LinkedInScraper
+
+        candidates = LinkedInScraper._select_candidate_profile_urls(
+            {
+                "module_results": {
+                    "serpapi_search": {
+                        "results": [
+                            {"url": "https://www.linkedin.com/in/john-doe/?trk=public_profile"},
+                        ],
+                        "dork_results": {
+                            "linkedin": [
+                                {"url": "https://www.linkedin.com/in/john-doe/detail/recent-activity/"}
+                            ]
+                        },
+                    }
+                }
+            }
+        )
+
+        assert candidates == ["https://www.linkedin.com/in/john-doe"]
+
+    @pytest.mark.asyncio
+    async def test_run_uses_search_resolved_profile_url(self, monkeypatch):
+        monkeypatch.setenv("LINKEDIN_EMAIL", "research@example.com")
+        monkeypatch.setenv("LINKEDIN_PASSWORD", "secret")
+
+        from app.modules.social.linkedin_scraper import LinkedInScraper
+
+        module = LinkedInScraper()
+        page = AsyncMock()
+        factory = AsyncMock()
+        factory.new_page = AsyncMock(return_value=page)
+        factory.close_page = AsyncMock()
+
+        with patch("app.engine.browser.BrowserFactory.create", AsyncMock(return_value=factory)):
+            with patch.object(module, "_ensure_logged_in", AsyncMock(return_value=True)):
+                with patch.object(
+                    module,
+                    "_extract_direct_profiles",
+                    AsyncMock(
+                        return_value=[
+                            {
+                                "name": "John Doe",
+                                "profile_url": "https://www.linkedin.com/in/john-doe",
+                            }
+                        ]
+                    ),
+                ) as extract_direct:
+                    with patch.object(
+                        module,
+                        "_search_and_extract",
+                        AsyncMock(return_value=[]),
+                    ) as search_extract:
+                        result = await module.run(
+                            "John Doe",
+                            TargetType.PERSON,
+                            {
+                                "target_inputs": {"name": "John Doe"},
+                                "module_results": {
+                                    "serpapi_search": {
+                                        "results": [
+                                            {"url": "https://www.linkedin.com/in/john-doe/"}
+                                        ]
+                                    }
+                                },
+                            },
+                        )
+
+        assert result.success is True
+        assert result.data["resolved_via_search"] is True
+        assert result.data["resolved_profile_urls"] == ["https://www.linkedin.com/in/john-doe"]
+        extract_direct.assert_awaited_once()
+        search_extract.assert_not_awaited()
+        factory.close_page.assert_awaited_once_with(page, save_session=True)
+
 
 class TestInstagramScraper:
     def test_select_candidate_usernames_includes_work_variants(self):

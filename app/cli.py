@@ -259,7 +259,21 @@ async def _async_scan(
     """Execute the scan asynchronously."""
     from app.engine.orchestrator import Orchestrator
 
-    orchestrator = Orchestrator()
+    async def cli_interaction_callback(
+        interaction_type: str, payload: dict
+    ) -> dict:
+        if interaction_type == "face_selection_required":
+            from app.ui.face_selector import select_faces
+
+            images = payload.get("images", [])
+            if not images:
+                return {"confirmed_indices": []}
+            loop = asyncio.get_event_loop()
+            result = await loop.run_in_executor(None, select_faces, images, "auto")
+            return {"confirmed_indices": result.confirmed_indices}
+        return {}
+
+    orchestrator = Orchestrator(interaction_callback=cli_interaction_callback)
     session = await orchestrator.run_scan(
         target=target,
         target_type=target_type,

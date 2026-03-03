@@ -81,9 +81,28 @@ MODULE_CONFIG_ALIASES: dict[str, str] = {
     "exif_extractor": "exif",
     "reverse_image_search": "reverse_image",
     "crawl4ai_crawler": "crawl4ai",
+    "google_vision_faces": "google_vision",
+}
+
+MODULE_FILTER_ALIASES: dict[str, tuple[str, ...]] = {
+    "linkedin": ("linkedin_scraper",),
+    "linkedin_scraper": ("linkedin_scraper",),
+    "instagram": ("instagram_scraper",),
+    "instagram_scraper": ("instagram_scraper",),
+    "bing": ("bing_search",),
+    "bing_search": ("bing_search",),
+    "duckduckgo": ("duckduckgo",),
+    "serpapi": ("serpapi_search",),
+    "serpapi_search": ("serpapi_search",),
+}
+
+MODULE_FILTER_DEPENDENCIES: dict[str, tuple[str, ...]] = {
+    "linkedin_scraper": ("serpapi_search", "duckduckgo", "bing_search"),
+    "instagram_scraper": ("serpapi_search", "duckduckgo", "bing_search"),
 }
 
 ProgressCallback = Callable[[dict[str, Any]], Awaitable[None]]
+InteractionCallback = Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]]
 
 MULTI_TARGET_MODULES = frozenset(
     {
@@ -108,9 +127,14 @@ class Orchestrator:
     Error isolation: a module failure never stops other modules or the scan.
     """
 
-    def __init__(self, progress_callback: ProgressCallback | None = None) -> None:
+    def __init__(
+        self,
+        progress_callback: ProgressCallback | None = None,
+        interaction_callback: InteractionCallback | None = None,
+    ) -> None:
         self._module_registry: dict[str, Any] | None = None
         self._progress_callback = progress_callback
+        self._interaction_callback = interaction_callback
 
     def _get_registry(self) -> dict[str, Any]:
         """Lazy-load the module registry to avoid circular imports."""
@@ -290,7 +314,7 @@ class Orchestrator:
     ) -> dict[int, list[Any]]:
         """Select modules to run based on target type, config, and auth availability."""
         selected: dict[int, list[Any]] = {}
-        requested = {name.strip() for name in module_filter or []}
+        requested = self._expand_module_filter(module_filter)
         available_target_types = candidate_type_set(target, target_type, target_inputs, {})
 
         for name, module_cls in registry.items():
@@ -319,6 +343,25 @@ class Orchestrator:
         for modules in selected.values():
             modules.sort(key=lambda module: module.metadata().priority)
         return selected
+
+    def _expand_module_filter(self, module_filter: list[str] | None) -> set[str]:
+        """Normalize CLI module aliases and inject prerequisite search modules."""
+        if not module_filter:
+            return set()
+
+        expanded: set[str] = set()
+        queue = [name.strip() for name in module_filter if name and name.strip()]
+
+        while queue:
+            raw_name = queue.pop(0)
+            names = MODULE_FILTER_ALIASES.get(raw_name, (raw_name,))
+            for name in names:
+                if name in expanded:
+                    continue
+                expanded.add(name)
+                queue.extend(MODULE_FILTER_DEPENDENCIES.get(name, ()))
+
+        return expanded
 
     def _module_config_names(self, module_cls: type[Any], meta: Any) -> list[str]:
         """Generate config.yaml name candidates for a module."""
@@ -382,6 +425,8 @@ class Orchestrator:
             "opencorporates": "opencorporates_api_token",
             "virustotal": "virustotal_api_key",
         }
+        if "google_vision" in module_name:
+            return settings.has_api_key("google_vision_api_key")
         if "linkedin" in module_name:
             return bool(settings.linkedin_email and settings.linkedin_password)
         if "instagram" in module_name:
@@ -471,11 +516,85 @@ class Orchestrator:
         for module in image_preload_modules:
             await run_one(module)
 
+        # Face confirmation checkpoint — let user select which images show the target
+        if phase == ModulePhase.IMAGE_PROCESSING and image_preload_modules:
+            await self._face_confirmation_checkpoint(session)
+
         await asyncio.gather(
             *(run_one(module) for module in remaining_modules), return_exceptions=False
         )
         session.save_metadata()
         logger.info("phase_completed", request_id=session.request_id, phase=phase.name)
+
+    async def _face_confirmation_checkpoint(self, session: ScanSession) -> None:
+        """
+        Pause scan to let the user select which downloaded images show the target.
+
+        Sets context["confirmed_face_images"] and context["reference_image"]
+        based on user selection. If no interaction callback is set (headless mode),
+        logs and continues without confirmation.
+        """
+        discovered_images = session.context.get("discovered_images", [])
+        if not discovered_images:
+            logger.debug("face_checkpoint_no_images", request_id=session.request_id)
+            return
+
+        # Check config for disabled mode
+        mode = get_module_setting("visual", "face_selector", "mode", "auto")
+        if mode == "disabled":
+            logger.info("face_checkpoint_disabled", request_id=session.request_id)
+            return
+
+        if not self._interaction_callback:
+            logger.info(
+                "face_checkpoint_no_callback",
+                request_id=session.request_id,
+                message="No interaction callback set — skipping face confirmation",
+            )
+            return
+
+        try:
+            response = await self._interaction_callback(
+                "face_selection_required",
+                {
+                    "images": discovered_images,
+                    "request_id": session.request_id,
+                    "image_count": len(discovered_images),
+                },
+            )
+        except Exception as exc:
+            logger.warning(
+                "face_checkpoint_callback_failed",
+                request_id=session.request_id,
+                error=str(exc),
+            )
+            return
+
+        confirmed_indices = response.get("confirmed_indices", [])
+        if not confirmed_indices:
+            logger.info("face_checkpoint_no_selection", request_id=session.request_id)
+            return
+
+        # Map indices to image entries
+        confirmed_images = [
+            discovered_images[i]
+            for i in confirmed_indices
+            if 0 <= i < len(discovered_images)
+        ]
+
+        if confirmed_images:
+            session.context["confirmed_face_images"] = confirmed_images
+            # Set first confirmed image as the reference
+            first_path = confirmed_images[0].get("file_path") or confirmed_images[0].get("path")
+            if first_path:
+                session.context["reference_image"] = str(first_path)
+
+            logger.info(
+                "face_checkpoint_complete",
+                request_id=session.request_id,
+                confirmed=len(confirmed_images),
+                total=len(discovered_images),
+            )
 
     async def _execute_module(self, session: ScanSession, module: Any) -> ModuleResult | None:
         """Validate and execute a single module."""

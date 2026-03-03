@@ -126,9 +126,18 @@ class FaceRecognitionModule(BaseModule):
                 warnings=["No images found in context['discovered_images']"],
             )
 
-        # Determine reference image
+        # Determine reference image — prefer user-confirmed faces
+        confirmed_faces = context.get("confirmed_face_images", [])
         reference_image_path = context.get("reference_image")
-        if reference_image_path:
+
+        if confirmed_faces:
+            reference_path = Path(str(confirmed_faces[0].get("file_path", "")))
+            logger.debug(
+                "face_recognition_using_confirmed",
+                path=str(reference_path),
+                confirmed_count=len(confirmed_faces),
+            )
+        elif reference_image_path:
             reference_path = Path(str(reference_image_path))
         else:
             # Fall back to first downloaded image
@@ -178,10 +187,28 @@ class FaceRecognitionModule(BaseModule):
                 warnings=[f"No faces detected in reference image: {reference_path.name}"],
             )
 
+        # Enrich reference embeddings from additional confirmed face images
+        if confirmed_faces and len(confirmed_faces) > 1:
+            for cf_entry in confirmed_faces[1:]:
+                cf_path = Path(str(cf_entry.get("file_path", "")))
+                if cf_path.exists() and cf_path != reference_path:
+                    try:
+                        extra_embs, _ = await loop.run_in_executor(
+                            None, self._extract_embeddings, face_app, cf_path
+                        )
+                        reference_embeddings.extend(extra_embs)
+                    except Exception as exc:
+                        logger.debug(
+                            "extra_reference_embedding_failed",
+                            path=str(cf_path),
+                            error=str(exc),
+                        )
+
         logger.info(
             "face_recognition_reference_embedded",
             reference=reference_path.name,
             face_count=ref_face_count,
+            total_reference_embeddings=len(reference_embeddings),
         )
 
         # Process all candidate images concurrently in thread pool

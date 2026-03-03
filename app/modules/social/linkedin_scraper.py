@@ -23,7 +23,7 @@ import re
 import time
 from pathlib import Path
 from typing import Any
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus, urlparse
 
 from app.core.config import settings
 from app.core.constants import ModulePhase, TargetType
@@ -151,7 +151,13 @@ class LinkedInScraper(BaseModule):
                     errors=["LinkedIn login failed — check credentials or clear the session file"],
                 )
 
-            profiles = await self._search_and_extract(page, factory, search_term, context)
+            direct_profile_urls = self._select_candidate_profile_urls(context)
+            if direct_profile_urls:
+                profiles = await self._extract_direct_profiles(
+                    page, factory, direct_profile_urls, context
+                )
+            else:
+                profiles = await self._search_and_extract(page, factory, search_term, context)
 
             elapsed = int((time.monotonic() - start) * 1000)
             return ModuleResult(
@@ -160,6 +166,8 @@ class LinkedInScraper(BaseModule):
                 success=True,
                 data={
                     "searched_query": search_term,
+                    "resolved_via_search": bool(direct_profile_urls),
+                    "resolved_profile_urls": direct_profile_urls,
                     "profiles_found": len(profiles),
                     "profiles": profiles,
                     "primary_profile": profiles[0] if profiles else None,
@@ -346,6 +354,18 @@ class LinkedInScraper(BaseModule):
                 profiles.append(profile)
             await asyncio.sleep(1)  # polite delay between profiles
 
+        return profiles
+
+    async def _extract_direct_profiles(
+        self, page, factory, profile_urls: list[str], context: dict[str, Any]
+    ) -> list[dict[str, Any]]:
+        """Prioritize LinkedIn profile URLs resolved from earlier search-engine modules."""
+        profiles: list[dict[str, Any]] = []
+        for url in profile_urls[:MAX_PROFILES]:
+            profile = await self._extract_profile(page, factory, url, context)
+            if profile:
+                profiles.append(profile)
+            await asyncio.sleep(1)
         return profiles
 
     async def _collect_profile_links(self, page) -> list[str]:
@@ -609,6 +629,75 @@ class LinkedInScraper(BaseModule):
             base = str(target).strip()
 
         return base
+
+    @staticmethod
+    def _select_candidate_profile_urls(context: dict[str, Any]) -> list[str]:
+        """Collect unique LinkedIn /in/ profile URLs discovered by search modules."""
+        candidates: list[str] = []
+        seen: set[str] = set()
+
+        def add(url: str | None) -> None:
+            normalized = LinkedInScraper._normalize_profile_url(url)
+            if not normalized or normalized in seen:
+                return
+            seen.add(normalized)
+            candidates.append(normalized)
+
+        for item in context.get("discovered_linkedin_profiles", []) or []:
+            if isinstance(item, dict):
+                add(item.get("url"))
+            elif isinstance(item, str):
+                add(item)
+
+        module_results = context.get("module_results", {}) if isinstance(context, dict) else {}
+        if isinstance(module_results, dict):
+            for mod_name in ("serpapi_search", "duckduckgo", "bing_search"):
+                payload = module_results.get(mod_name)
+                if isinstance(payload, dict):
+                    for url in LinkedInScraper._profile_urls_from_search(payload):
+                        add(url)
+
+        return candidates
+
+    @staticmethod
+    def _profile_urls_from_search(payload: dict[str, Any]) -> list[str]:
+        candidates: list[str] = []
+
+        for item in payload.get("results", []) or []:
+            if isinstance(item, dict):
+                url = item.get("url") or item.get("link")
+                normalized = LinkedInScraper._normalize_profile_url(url)
+                if normalized:
+                    candidates.append(normalized)
+
+        for items in (payload.get("dork_results") or {}).values():
+            if isinstance(items, list):
+                for item in items:
+                    if isinstance(item, dict):
+                        url = item.get("url") or item.get("link")
+                        normalized = LinkedInScraper._normalize_profile_url(url)
+                        if normalized:
+                            candidates.append(normalized)
+
+        return list(dict.fromkeys(candidates))
+
+    @staticmethod
+    def _normalize_profile_url(url: str | None) -> str | None:
+        if not url:
+            return None
+        try:
+            parsed = urlparse(url.strip())
+        except Exception:
+            return None
+        if "linkedin.com" not in parsed.netloc.lower():
+            return None
+        parts = [part for part in parsed.path.split("/") if part]
+        if len(parts) < 2 or parts[0] != "in":
+            return None
+        slug = parts[1].strip()
+        if not slug:
+            return None
+        return f"https://www.linkedin.com/in/{slug}"
 
     async def _first_text(self, page, selectors: list[str]) -> str | None:
         """Return the inner text of the first matching selector."""

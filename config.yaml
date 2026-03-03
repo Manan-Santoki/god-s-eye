@@ -170,6 +170,13 @@ modules:
       enabled: true
       max_images: 100
       deduplicate: true    # Skip images with same hash
+    face_selector:
+      enabled: true
+      mode: auto            # auto | tkinter | rich | disabled
+      timeout_seconds: 300
+    google_vision_faces:
+      enabled: true
+      max_images: 30
 
   breach:
     hibp:

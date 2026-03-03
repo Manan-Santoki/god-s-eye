@@ -239,6 +239,19 @@ class TestOrchestrator:
         assert 1 in selected
         assert selected[1][0].metadata().name == "mock_username"
 
+    def test_expand_module_filter_adds_aliases_and_search_dependencies(self):
+        from app.engine.orchestrator import Orchestrator
+
+        orchestrator = Orchestrator()
+
+        expanded = orchestrator._expand_module_filter(["linkedin", "instagram"])
+
+        assert "linkedin_scraper" in expanded
+        assert "instagram_scraper" in expanded
+        assert "serpapi_search" in expanded
+        assert "duckduckgo" in expanded
+        assert "bing_search" in expanded
+
     def test_build_execution_context_prefers_username_for_github(self, scan_session):
         from app.engine.orchestrator import Orchestrator
         from app.modules.social.github_api import GitHubAPIModule
